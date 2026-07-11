@@ -66,6 +66,7 @@ def test_page_health_and_form_options(client):
     assert "知识列表" in page
     assert 'class="check-grid phase-row"' in page
     assert 'id="applicableConditions" class="auto-grow"' in page
+    assert 'id="cancelEdit"' in page
     assert client.get("/health").json()["status"] == "ok"
     options = client.get("/api/meta/form-options").json()
     assert options["knowledge_types"] == ["model", "decision", "guideline", "pitfall", "process"]

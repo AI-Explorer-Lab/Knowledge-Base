@@ -118,6 +118,7 @@ function resetEditor() {
   $("knowledgePolarity").value = "recommend";
   $("editorTitle").textContent = "新建知识";
   $("editorMode").textContent = "保存后自动运行 Lint 并重建 Catalog";
+  $("cancelEdit").classList.add("hidden");
   document.querySelectorAll("#phaseOptions input").forEach((item) => item.checked = false);
   renderSections();
   refreshAutoGrow();
@@ -173,6 +174,7 @@ async function editKnowledge(id) {
     refreshAutoGrow();
     $("editorTitle").textContent = `编辑 ${id}`;
     $("editorMode").textContent = `保留 maturity=${meta.maturity}、status=${meta.status}；状态变化需走治理提案`;
+    $("cancelEdit").classList.remove("hidden");
     switchTab("editor");
   } catch (error) { notify(error.message, true); }
 }
@@ -239,10 +241,17 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("input", (event) => {
     if (event.target.matches("textarea")) autoGrow(event.target);
   });
-  document.querySelectorAll(".tab").forEach((button) => button.addEventListener("click", () => switchTab(button.dataset.tab)));
+  document.querySelectorAll(".tab").forEach((button) => button.addEventListener("click", () => {
+    if (button.dataset.tab === "editor" && state.editingId) resetEditor();
+    switchTab(button.dataset.tab);
+  }));
   $("searchKnowledge").addEventListener("click", () => loadKnowledge().catch((error) => notify(error.message, true)));
   $("newKnowledge").addEventListener("click", () => { resetEditor(); switchTab("editor"); });
   $("resetEditor").addEventListener("click", resetEditor);
+  $("cancelEdit").addEventListener("click", () => {
+    resetEditor();
+    notify("已取消编辑，当前为新的空白知识表单。");
+  });
   $("knowledgeType").addEventListener("change", () => { renderSections(); suggestId(); });
   $("knowledgeScope").addEventListener("change", suggestId);
   $("validateKnowledge").addEventListener("click", () => validateKnowledge().catch((error) => notify(error.message, true)));

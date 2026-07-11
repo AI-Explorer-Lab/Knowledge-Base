@@ -22,6 +22,7 @@ button { cursor: pointer; }
 h1 { margin: 0; font-family: Georgia, serif; font-size: clamp(38px, 5vw, 64px); letter-spacing: -.045em; }
 .subtitle { margin: 12px 0 0; color: var(--muted); max-width: 680px; line-height: 1.65; }
 .top-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.editor-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .status-pill { padding: 9px 13px; border-radius: 999px; color: var(--green-dark); background: var(--green-soft); font-size: 13px; font-weight: 700; }
 .shell { max-width: 1240px; margin: 0 auto 80px; padding: 0 32px; }
 .tabs { display: flex; gap: 6px; padding: 6px; border: 1px solid var(--line); background: rgba(255,255,255,.75); backdrop-filter: blur(10px); border-radius: 14px; width: fit-content; margin-bottom: 18px; }
@@ -83,6 +84,7 @@ label input, label select, label textarea { margin-top: 7px; font-weight: 450; }
 @media (max-width: 840px) {
   .topbar, .panel-heading { flex-direction: column; align-items: stretch; }
   .top-actions { justify-content: flex-start; }
+  .editor-actions { justify-content: flex-start; }
   .filters, .grid.two, .grid.three, .card-grid { grid-template-columns: 1fr; }
   .grid .wide { grid-column: auto; }
   .tabs { width: 100%; overflow-x: auto; }
