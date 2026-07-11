@@ -1,0 +1,24 @@
+default:
+  environment: local
+  db:
+    enabled: false
+  agent:
+    enabled: false
+  web:
+    host: 127.0.0.1
+    port: 8000
+    auth_mode: local
+    default_user: local-user
+
+development:
+  environment: development
+  web:
+    host: 127.0.0.1
+    port: 8000
+
+testing:
+  environment: testing
+  web:
+    host: 127.0.0.1
+    port: 8001
+    default_user: test-user

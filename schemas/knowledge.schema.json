@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "knowledge.schema.json",
+  "type": "object",
+  "required": ["schema_version", "id", "title", "type", "scope", "domain", "maturity", "status", "risk_level", "owner", "created_at", "updated_at", "applicable_conditions", "not_applicable_conditions", "tags", "source_references"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "id": {"type": "string", "pattern": "^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$"},
+    "title": {"type": "string", "minLength": 1},
+    "type": {"enum": ["model", "decision", "guideline", "pitfall", "process"]},
+    "scope": {"enum": ["team", "tech", "biz", "project"]},
+    "domain": {"type": "string", "minLength": 1},
+    "maturity": {"enum": ["draft", "verified", "proven"]},
+    "status": {"enum": ["active", "review_due", "disputed", "deprecated", "archived"]},
+    "risk_level": {"enum": ["low", "medium", "high"]},
+    "owner": {"type": "string", "minLength": 1},
+    "maintainers": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "created_at": {"type": "string", "format": "date"},
+    "updated_at": {"type": "string", "format": "date"},
+    "review_policy_override": {
+      "type": "object",
+      "required": ["interval", "reason"],
+      "properties": {"interval": {"type": "string", "pattern": "^[1-9][0-9]*d$"}, "reason": {"type": "string", "minLength": 1}},
+      "additionalProperties": false
+    },
+    "applicable_phases": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "applicable_conditions": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "not_applicable_conditions": {"type": "array", "items": {"type": "string"}},
+    "tags": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "source_references": {
+      "type": "array", "minItems": 1,
+      "items": {"type": "object", "required": ["type", "ref"], "properties": {"type": {"type": "string"}, "ref": {"type": "string", "minLength": 1}}, "additionalProperties": true}
+    },
+    "supersedes": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "superseded_by": {"type": ["string", "null"]},
+    "polarity": {"enum": ["recommend", "avoid"]}
+  },
+  "allOf": [
+    {"if": {"properties": {"type": {"const": "guideline"}}}, "then": {"required": ["polarity"]}},
+    {"if": {"properties": {"status": {"const": "deprecated"}}}, "then": {"required": ["deprecation"]}}
+  ],
+  "additionalProperties": true
+}

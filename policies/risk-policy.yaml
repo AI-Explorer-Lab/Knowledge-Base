@@ -1,0 +1,4 @@
+schema_version: 1
+levels: [low, medium, high]
+high_risk_domains: [security, finance, permissions, deletion]
+high_risk_requires_specialist: true

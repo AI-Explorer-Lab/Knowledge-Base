@@ -1,0 +1,13 @@
+schema_version: 1
+default_interval: 180d
+by_scope:
+  team: 365d
+  tech: 180d
+  biz: 180d
+  project: 180d
+by_risk:
+  high: 90d
+by_domain:
+  security: 90d
+  ai-model: 30d
+precedence: [knowledge_override, domain, risk, scope, default]
