@@ -73,6 +73,11 @@ def test_page_health_and_form_options(client):
     assert options["defaults"]["maturity"] == "draft"
     assert "project" not in options["scopes"]
     assert options["phases"][-1] == "ARCHIVE"
+    css = client.get("/static/app.css").text
+    javascript = client.get("/static/app.js").text
+    assert ".message { position: fixed" in css
+    assert ".message.fading" in css
+    assert "}, 3000);" in javascript
 
 
 def test_create_and_update_knowledge_through_api(client, web_repo):

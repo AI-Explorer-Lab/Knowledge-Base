@@ -72,8 +72,9 @@ label input, label select, label textarea { margin-top: 7px; font-weight: 450; }
 .check-item input { width: auto; margin: 0; }
 .hint, .muted { color: var(--muted); font-size: 13px; }
 .form-actions { display: flex; gap: 10px; align-items: center; padding-top: 8px; flex-wrap: wrap; }
-.message { margin: 0 0 16px; padding: 13px 16px; border-radius: 10px; border: 1px solid #b8d4c2; background: var(--green-soft); color: var(--green-dark); white-space: pre-wrap; }
+.message { position: fixed; top: 24px; right: 24px; z-index: 1000; width: min(440px, calc(100vw - 36px)); margin: 0; padding: 14px 17px; border-radius: 12px; border: 1px solid #b8d4c2; background: var(--green-soft); color: var(--green-dark); box-shadow: 0 16px 38px rgba(20, 57, 36, .18); white-space: pre-wrap; opacity: 1; transform: translateY(0); transition: opacity .45s ease, transform .45s ease; }
 .message.error { color: var(--red); background: #fbe8e8; border-color: #e8bcbc; }
+.message.fading { opacity: 0; transform: translateY(-10px); pointer-events: none; }
 .hidden { display: none !important; }
 .card-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .card { border: 1px solid var(--line); border-radius: 13px; padding: 18px; background: #fbfcfb; }
@@ -92,4 +93,5 @@ label input, label select, label textarea { margin-top: 7px; font-weight: 450; }
   .phase-row { margin-right: -4px; }
   .shell, .topbar { padding-left: 18px; padding-right: 18px; }
   .panel { padding: 20px; }
+  .message { top: 14px; right: 18px; }
 }

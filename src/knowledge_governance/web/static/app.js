@@ -1,4 +1,6 @@
 const state = { options: null, items: [], editingId: null, sectionDrafts: {} };
+let messageFadeTimer = null;
+let messageHideTimer = null;
 
 const $ = (id) => document.getElementById(id);
 const splitLines = (value) => value.split("\n").map((item) => item.trim()).filter(Boolean);
@@ -26,10 +28,15 @@ async function api(path, options = {}) {
 
 function notify(message, error = false) {
   const box = $("message");
+  clearTimeout(messageFadeTimer);
+  clearTimeout(messageHideTimer);
   box.textContent = message;
-  box.classList.remove("hidden", "error");
+  box.classList.remove("hidden", "error", "fading");
   if (error) box.classList.add("error");
-  window.scrollTo({top: 0, behavior: "smooth"});
+  messageFadeTimer = setTimeout(() => {
+    box.classList.add("fading");
+    messageHideTimer = setTimeout(() => box.classList.add("hidden"), 450);
+  }, 3000);
 }
 
 function switchTab(name) {
