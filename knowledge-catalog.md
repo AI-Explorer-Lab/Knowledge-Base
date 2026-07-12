@@ -40,3 +40,13 @@ Layer A：读取本目录
 - Layer 1 技术知识：`tech-wiki/catalog.md`
 - Layer 2 业务知识：`biz-wiki/{domain}/catalog.md`
 - Layer 3 项目知识：`docs/knowledge/catalog.md`
+
+<!-- knowledge-summary:start -->
+## 治理状态摘要
+
+| 层级 | 活跃条目 | 归档条目 |
+|---|---:|---:|
+| Layer 1 | 0 | 0 |
+| Layer 2 | 0 | 0 |
+| Layer 3 | 0 | 0 |
+<!-- knowledge-summary:end -->
