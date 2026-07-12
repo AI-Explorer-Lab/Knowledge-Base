@@ -1,25 +1,52 @@
-# 知识目录
+# 知识全景目录
 
-> 本文件由 `knowledge build-catalog` 生成，请勿手工编辑。
+> 本文件是 Agent 查询知识库的 Layer A 入口。知识分层和阶段查询路径来自微信公众号原文；Layer 0-P 按本项目要求调整为项目内的成员子目录。
 
-知识总数：10
+## 知识分层
 
-## 健康摘要
+| 层级 | 内容 | 位置 | 共享范围 |
+|---|---|---|---|
+| Layer 0-P | 个人偏好 | `personal-prefernece/{用户名}/` | 按成员子目录区分 |
+| Layer 0-T | 团队约定 | `team-conventions/` | 团队级，Git 共享 |
+| Layer 1 | 技术知识 | `tech-wiki/` | 团队级，跨项目 |
+| Layer 2 | 业务知识 | `biz-wiki/{domain}/` | 团队级，按领域组织 |
+| Layer 3 | 项目知识 | `docs/knowledge/` | 项目级，随项目演进 |
 
-- 成熟度：draft=8, verified=2
-- 状态：active=10
+## 渐进查询路径
 
-## 活跃知识
+```text
+Layer A：读取本目录
+→ Layer B：读取对应分类的 catalog.md
+→ Layer C：按需读取完整知识条目
+→ 必要时沿 source_references 追溯原始产物
+```
 
-| ID | 标题 | 类型 | 成熟度 | 状态 | 最近验证 | 下次复核 |
-|---|---|---|---|---|---|---|
-| [BK-AD-MOD-001](biz-wiki/advertising/entities/BK-AD-MOD-001.md) | 广告活动是预算与投放规则的聚合根 | model | draft | active | - | 2027-01-07 |
-| [BK-AD-PRC-001](biz-wiki/advertising/processes/BK-AD-PRC-001.md) | 高预算广告活动发布必须经过双人复核 | process | draft | active | - | 2026-10-09 |
-| [PK-DEC-001](docs/knowledge/decisions/PK-DEC-001.md) | Knowledge-Base 项目使用文件系统作为治理事实源 | decision | draft | active | - | 2027-01-08 |
-| [TM-GDL-001](team-conventions/coding-standards.md) | 代码变更必须遵循项目既有风格并保持最小范围 | guideline | draft | active | - | 2027-07-12 |
-| [TM-GDL-002](team-conventions/commit-conventions.md) | Git 提交必须单一目的且说明可验证结果 | guideline | draft | active | - | 2027-07-12 |
-| [TM-GDL-003](team-conventions/review-standards.md) | 代码审查必须优先检查正确性安全性和回归风险 | guideline | draft | active | - | 2027-07-12 |
-| [TK-DEC-001](tech-wiki/decisions/TK-DEC-001.md) | Catalog 必须由源文件确定性生成 | decision | draft | active | - | 2027-01-07 |
-| [TK-GDL-001](tech-wiki/guidelines/TK-GDL-001.md) | 消息消费者必须保证业务幂等 | guideline | verified | active | 2026-06-18T16:10:00+08:00 | 2026-12-15 |
-| [TK-GDL-002](tech-wiki/guidelines/TK-GDL-002.md) | FastAPI 后端项目应按职责分层组织 | guideline | verified | active | 2026-07-11T10:33:49+00:00 | 2027-01-07 |
-| [TK-PIT-001](tech-wiki/pitfalls/TK-PIT-001.md) | 不要把知识引用次数当作验证次数 | pitfall | draft | active | - | 2027-01-07 |
+## 各阶段推荐查阅路径
+
+| 阶段 | 查询焦点 | 重点知识类型 |
+|---|---|---|
+| `ANALYSE_PRODUCT` | Layer 2 业务知识、历史需求 | `model`、`process`、`pitfall` |
+| `ANALYSE_TECH` | Layer 1 技术知识、归档索引 | `decision`、`guideline(avoid)`、`pitfall` |
+| `ARCHITECT` | 架构模式、实体关系 | `decision`、`model` |
+| `IMPLEMENT` | 编码实践、团队约定 | `guideline`、`pitfall` |
+| `BUILD_VERIFY` | 反模式库 | `pitfall`、`guideline(avoid)` |
+
+每个阶段使用独立查询预算。原文没有给出具体预算数值。
+
+## 分类入口
+
+- Layer 0-P 个人偏好：`personal-prefernece/{用户名}/`
+- Layer 0-T 团队约定：`team-conventions/`
+- Layer 1 技术知识：`tech-wiki/catalog.md`
+- Layer 2 业务知识：`biz-wiki/{domain}/catalog.md`
+- Layer 3 项目知识：`docs/knowledge/catalog.md`
+
+<!-- knowledge-summary:start -->
+## 治理状态摘要
+
+| 层级 | 活跃条目 | 归档条目 |
+|---|---:|---:|
+| Layer 1 | 0 | 0 |
+| Layer 2 | 0 | 0 |
+| Layer 3 | 0 | 0 |
+<!-- knowledge-summary:end -->

@@ -1,24 +1,4 @@
-schema_version: 1
-repository:
-  name: Knowledge-Base
-  default_language: zh-CN
-roles:
-  maintainers: [knowledge-core-team]
-  contributors: [knowledge-contributors]
-  readers: [knowledge-readers]
-catalog:
-  generated: true
-  include_statuses: [active, review_due, disputed]
-  default_exclude_statuses: [deprecated, archived]
-lifecycle:
-  maturity_policy_file: policies/maturity-policy.yaml
-  review_policy_file: policies/review-policy.yaml
-  retention_policy_file: policies/retention-policy.yaml
-conflicts:
-  on_content_conflict: disputed
-  on_maturity_conflict: keep_lower
-  require_maintainer_review: true
-automation:
-  direct_write_to_main: false
-  create_pull_request: true
-  append_log: true
+# 团队知识库配置
+#
+# 微信公众号原文只明确该文件用于团队成员和冲突策略，
+# 没有给出字段结构，因此此处不自行定义配置项。
