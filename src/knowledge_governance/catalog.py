@@ -30,13 +30,21 @@ def build_catalogs(root: Path, records: List[KnowledgeRecord], evidence: Dict[st
     written = [root / "knowledge-catalog.md"]
     summary = ["# 知识目录", "", "> 本文件由 `knowledge build-catalog` 生成，请勿手工编辑。", "", f"知识总数：{len(records)}", "", "## 健康摘要", "", f"- 成熟度：{', '.join(f'{key}={maturities[key]}' for key in sorted(maturities))}", f"- 状态：{', '.join(f'{key}={statuses[key]}' for key in sorted(statuses))}", "", "## 活跃知识", "", _table(root, written[0], included, evidence, review_policy), ""]
     atomic_write(written[0], "\n".join(summary))
-    groups = [(root / "tech-wiki" / "catalog.md", [record for record in included if record.metadata.get("scope") == "tech"])]
+    groups = [
+        (root / "team-conventions" / "catalog.md", [record for record in included if record.metadata.get("scope") == "team"]),
+        (root / "tech-wiki" / "catalog.md", [record for record in included if record.metadata.get("scope") == "tech"]),
+        (root / "docs" / "knowledge" / "catalog.md", [record for record in included if record.metadata.get("scope") == "project"]),
+    ]
     for domain_dir in sorted((root / "biz-wiki").glob("*")) if (root / "biz-wiki").exists() else []:
         if domain_dir.is_dir():
             groups.append((domain_dir / "catalog.md", [record for record in included if domain_dir in record.path.parents]))
     for path, group in groups:
-        heading = path.parent.name
-        atomic_write(path, f"# {heading} 知识目录\n\n> 自动生成，请勿手工编辑。\n\n{_table(root, path, group, evidence, review_policy)}\n")
+        heading = {
+            root / "team-conventions": "团队约定目录",
+            root / "tech-wiki": "技术知识目录",
+            root / "docs" / "knowledge": "项目知识目录",
+        }.get(path.parent, f"{path.parent.name} 知识目录")
+        atomic_write(path, f"# {heading}\n\n> 自动生成，请勿手工编辑。\n\n{_table(root, path, group, evidence, review_policy)}\n")
         written.append(path)
     due = []
     today = dt.date.today()

@@ -12,6 +12,8 @@ def test_repository_examples_pass_lint():
     repo = Repository(ROOT)
     findings = validate(ROOT, repo.load_knowledge(), repo.load_evidence())
     assert [item.render() for item in findings if item.severity == "error"] == []
+    profiles = repo.load_project_profiles()
+    assert profiles["knowledge-base"]["project"]["knowledge_path"] == "docs/knowledge"
 
 
 def test_catalog_generation_is_deterministic():
@@ -26,3 +28,7 @@ def test_catalog_generation_is_deterministic():
     assert first == second
     tech_catalog = (ROOT / "tech-wiki" / "catalog.md").read_text(encoding="utf-8")
     assert "(guidelines/TK-GDL-001.md)" in tech_catalog
+    team_catalog = (ROOT / "team-conventions" / "catalog.md").read_text(encoding="utf-8")
+    assert "TM-GDL-001" in team_catalog
+    project_catalog = (ROOT / "docs" / "knowledge" / "catalog.md").read_text(encoding="utf-8")
+    assert "PK-DEC-001" in project_catalog

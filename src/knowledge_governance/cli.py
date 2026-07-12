@@ -12,6 +12,7 @@ from .catalog import build_catalogs
 from .errors import KnowledgeError
 from .evidence import append_event, utc_now
 from .lifecycle import derived_dates, evaluate
+from .preferences import init_personal_preferences, load_personal_context
 from .repository import Repository
 from .validator import validate
 from .yaml_io import atomic_write, dump_yaml
@@ -100,6 +101,21 @@ def command_web(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_init_personal(args: argparse.Namespace) -> int:
+    created = init_personal_preferences(args.personal_root)
+    root = args.personal_root.expanduser().resolve()
+    print(f"个人偏好目录：{root}")
+    print("preferences.yaml：" + ("已创建" if created["preferences"] else "已存在，未覆盖"))
+    print("instructions.md：" + ("已创建" if created["instructions"] else "已存在，未覆盖"))
+    return 0
+
+
+def command_personal_context(args: argparse.Namespace) -> int:
+    context = load_personal_context(args.project, args.personal_root)
+    print(json.dumps(context, ensure_ascii=False, indent=2))
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(prog="knowledge", description="Git 知识库治理工具")
     result.add_argument("--root", type=_root, default=Path.cwd(), help="知识库根目录")
@@ -129,6 +145,13 @@ def parser() -> argparse.ArgumentParser:
     web.add_argument("--port", type=int, default=8000, help="监听端口")
     web.add_argument("--environment", default="development", choices=["development", "testing"])
     web.set_defaults(func=command_web)
+    init_personal = commands.add_parser("init-personal", help="初始化本机 Layer 0-P 个人偏好")
+    init_personal.add_argument("--personal-root", type=Path, default=Path.home() / ".ai-team")
+    init_personal.set_defaults(func=command_init_personal)
+    personal_context = commands.add_parser("personal-context", help="输出当前项目合并后的个人偏好上下文")
+    personal_context.add_argument("--project", type=Path, default=Path.cwd())
+    personal_context.add_argument("--personal-root", type=Path, default=Path.home() / ".ai-team")
+    personal_context.set_defaults(func=command_personal_context)
     return result
 
 

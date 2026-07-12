@@ -2,6 +2,10 @@ schema_version: 1
 repository:
   name: Knowledge-Base
   default_language: zh-CN
+roles:
+  maintainers: [knowledge-core-team]
+  contributors: [knowledge-contributors]
+  readers: [knowledge-readers]
 catalog:
   generated: true
   include_statuses: [active, review_due, disputed]

@@ -9,7 +9,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 
 from .evidence import effective_events
 from .models import EvidenceRecord, Finding, KnowledgeRecord
-from .yaml_io import load_json
+from .yaml_io import load_json, load_yaml
 
 
 COMMON_SECTIONS = ("结论", "背景与问题", "适用条件", "不适用条件", "详细说明", "验证方式", "来源")
@@ -31,6 +31,10 @@ def _expected_scope(path: Path) -> str:
     parts = path.parts
     if "archive" in parts:
         return "archive"
+    if "docs" in parts:
+        docs_index = parts.index("docs")
+        if len(parts) > docs_index + 1 and parts[docs_index + 1] == "knowledge":
+            return "project"
     mapping = {"team-conventions": "team", "tech-wiki": "tech", "biz-wiki": "biz"}
     for directory, scope in mapping.items():
         if directory in parts:
@@ -43,6 +47,7 @@ def validate(root: Path, records: Iterable[KnowledgeRecord], evidence: Dict[str,
     findings: List[Finding] = []
     knowledge_schema = load_json(root / "schemas" / "knowledge.schema.json")
     evidence_schema = load_json(root / "schemas" / "evidence.schema.json")
+    profile_schema = load_json(root / "schemas" / "project-profile.schema.json")
     id_counts = Counter(record.id for record in records)
     known_ids = set(id_counts)
     for record in records:
@@ -79,4 +84,19 @@ def validate(root: Path, records: Iterable[KnowledgeRecord], evidence: Dict[str,
     for title, ids in normalized_titles.items():
         if title and len(ids) > 1:
             findings.append(Finding("warning", "knowledge-tree", f"疑似精确重复标题：{', '.join(sorted(ids))}"))
+    profile_ids = []
+    profile_directory = root / "project-profiles"
+    for path in sorted(profile_directory.glob("*.yaml")) if profile_directory.exists() else []:
+        data = load_yaml(path, {})
+        relative = path.relative_to(root)
+        if not isinstance(data, dict):
+            findings.append(Finding("error", str(relative), "项目画像必须是对象"))
+            continue
+        findings.extend(_schema_findings(relative, data, profile_schema))
+        project = data.get("project") or {}
+        if isinstance(project, dict):
+            profile_ids.append(str(project.get("id", "")))
+    for profile_id, count in Counter(profile_ids).items():
+        if profile_id and count > 1:
+            findings.append(Finding("error", "project-profiles", f"项目画像 ID 重复：{profile_id}"))
     return sorted(findings, key=lambda item: (item.severity != "error", item.path, item.message))

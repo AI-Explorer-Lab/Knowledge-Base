@@ -115,12 +115,26 @@ async function suggestId() {
   $("knowledgeId").value = data.id;
 }
 
+function updateScopeFields() {
+  const scope = $("knowledgeScope").value;
+  const labels = {
+    team: ["约定领域", "engineering"],
+    tech: ["技术领域", "backend-architecture"],
+    biz: ["业务领域", "advertising"],
+    project: ["项目标识", "knowledge-base"],
+  };
+  const [label, placeholder] = labels[scope] || ["领域", "general"];
+  $("knowledgeDomainLabel").textContent = label;
+  $("knowledgeDomain").placeholder = placeholder;
+}
+
 function resetEditor() {
   state.editingId = null;
   state.sectionDrafts = {};
   $("knowledgeForm").reset();
   $("knowledgeType").value = "guideline";
   $("knowledgeScope").value = "tech";
+  updateScopeFields();
   $("knowledgeRisk").value = state.options.defaults.risk_level;
   $("knowledgeOwner").value = state.options.defaults.owner;
   $("knowledgePolarity").value = "recommend";
@@ -173,6 +187,7 @@ async function editKnowledge(id) {
     $("knowledgeTitle").value = meta.title;
     $("knowledgeType").value = meta.type;
     $("knowledgeScope").value = meta.scope;
+    updateScopeFields();
     $("knowledgeDomain").value = meta.domain;
     $("knowledgeRisk").value = meta.risk_level;
     $("knowledgeOwner").value = meta.owner;
@@ -302,7 +317,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("submitTransition").addEventListener("click", submitTransitionProposal);
   $("transitionModal").addEventListener("click", (event) => { if (event.target === $("transitionModal")) closeTransitionModal(); });
   $("knowledgeType").addEventListener("change", () => { renderSections(); suggestId(); });
-  $("knowledgeScope").addEventListener("change", suggestId);
+  $("knowledgeScope").addEventListener("change", () => { updateScopeFields(); suggestId(); });
   $("validateKnowledge").addEventListener("click", () => validateKnowledge().catch((error) => notify(error.message, true)));
   $("knowledgeForm").addEventListener("submit", saveKnowledge);
   $("eventType").addEventListener("change", toggleValidationFields);

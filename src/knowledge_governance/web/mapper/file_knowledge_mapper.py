@@ -28,7 +28,12 @@ TYPE_DIRECTORIES = {
     KnowledgeType.PITFALL: "pitfalls",
     KnowledgeType.PROCESS: "processes",
 }
-SCOPE_PREFIXES = {KnowledgeScope.TEAM: "TM", KnowledgeScope.TECH: "TK", KnowledgeScope.BIZ: "BK"}
+SCOPE_PREFIXES = {
+    KnowledgeScope.TEAM: "TM",
+    KnowledgeScope.TECH: "TK",
+    KnowledgeScope.BIZ: "BK",
+    KnowledgeScope.PROJECT: "PK",
+}
 
 
 class FileKnowledgeMapper:
@@ -59,7 +64,9 @@ class FileKnowledgeMapper:
             return self.root / "team-conventions" / f"{knowledge_id}.md"
         if data.scope == KnowledgeScope.TECH:
             return self.root / "tech-wiki" / TYPE_DIRECTORIES[data.type] / f"{knowledge_id}.md"
-        return self.root / "biz-wiki" / data.domain / TYPE_DIRECTORIES[data.type] / f"{knowledge_id}.md"
+        if data.scope == KnowledgeScope.BIZ:
+            return self.root / "biz-wiki" / data.domain / TYPE_DIRECTORIES[data.type] / f"{knowledge_id}.md"
+        return self.root / "docs" / "knowledge" / TYPE_DIRECTORIES[data.type] / f"{knowledge_id}.md"
 
     def build_record(self, data: KnowledgeUpsertRequest, existing: Optional[KnowledgeRecord] = None) -> KnowledgeRecord:
         today = dt.date.today().isoformat()

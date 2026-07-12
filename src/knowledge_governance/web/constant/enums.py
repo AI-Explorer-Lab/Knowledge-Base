@@ -13,6 +13,7 @@ class KnowledgeScope(str, Enum):
     TEAM = "team"
     TECH = "tech"
     BIZ = "biz"
+    PROJECT = "project"
 
 
 class Maturity(str, Enum):

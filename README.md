@@ -58,6 +58,24 @@ knowledge web
 
 ## 常用命令
 
+初始化仅保存在当前电脑上的 Layer 0-P 个人偏好：
+
+```bash
+knowledge init-personal
+```
+
+查看针对当前项目合并后的个人偏好上下文：
+
+```bash
+knowledge personal-context --project "$PWD"
+```
+
+真实配置位于 `~/.ai-team/`，不会进入知识库 Git。Harness 或 Agent 在注入团队、技术、业务和项目知识前，应先调用相同的个人上下文加载能力；个人偏好只能补充未明确规定的选择，不能覆盖安全要求、当前任务、项目约束、团队约定或业务事实。完整说明见 [个人偏好配置](docs/个人偏好配置.md)。
+
+本项目按五层静态知识架构组织：Layer 0-P 位于本机 `~/.ai-team/`；Layer 0-T 位于 `team-conventions/`；Layer 1 位于 `tech-wiki/`；Layer 2 位于 `biz-wiki/{domain}/`；Layer 3 位于项目自己的 `docs/knowledge/`。`project-profiles/` 记录团队知识库与项目知识入口的关联。
+
+## 知识治理命令
+
 校验整个知识库：
 
 ```bash
@@ -141,19 +159,22 @@ knowledge --root /path/to/knowledge-base lint
 ```text
 .
 ├── .knowledge-config.yaml       # 仓库级配置
-├── schemas/                     # Knowledge、Evidence 和 Policy Schema
+├── schemas/                     # Knowledge、Evidence、Policy 和项目画像 Schema
 ├── policies/                    # 成熟度、复核、保留和风险策略
 ├── templates/                   # 五类知识模板
-├── team-conventions/            # 团队约定
-├── tech-wiki/                   # 跨项目技术知识
-├── biz-wiki/                    # 业务域知识
+│   └── personal-preferences.example.yaml # Layer 0-P 本地配置示例
+├── team-conventions/            # Layer 0-T：团队约定
+├── tech-wiki/                   # Layer 1：跨项目技术知识
+├── biz-wiki/                    # Layer 2：业务域知识
+├── docs/knowledge/              # Layer 3：随当前项目版本管理的项目知识
+├── project-profiles/            # 项目画像及 Layer 3 入口
 ├── evidence/                    # 动态证据事件
 ├── contributions/              # 待审批提案与冲突
 ├── reports/                     # 自动生成的治理报告
 ├── archive/                     # 退出活跃检索的历史知识
 ├── src/knowledge_governance/    # Python 治理内核
 ├── tests/                       # 自动化测试
-├── feature/                     # 非当前版本前置的未来优化
+├── future/                      # 非当前版本前置的未来优化
 └── plan/                        # 完整治理规格
 ```
 
@@ -179,8 +200,8 @@ knowledge --root /path/to/knowledge-base lint
 pytest -q
 ```
 
-测试覆盖事件幂等、冲突事件 ID、派生时间、独立验证晋级、安全状态转换、仓库 Lint、Catalog 确定性、网页启动、Pydantic 条件校验、知识创建编辑、元数据保留、Evidence 写入和治理候选。GitHub Actions 会执行 Lint、重建 Catalog、检查生成文件是否有未提交差异并运行测试；因此人工修改 Catalog 或忘记重新生成都会导致检查失败。
+测试覆盖事件幂等、冲突事件 ID、派生时间、独立验证晋级、安全状态转换、仓库 Lint、Catalog 确定性、四种知识范围、Layer 3 路径、网页启动、Pydantic 条件校验、知识创建编辑、元数据保留、Evidence 写入和治理候选。GitHub Actions 会执行 Lint、重建 Catalog、检查生成文件是否有未提交差异并运行测试；因此人工修改 Catalog 或忘记重新生成都会导致检查失败。
 
 ## 当前范围与未来优化
 
-当前版本定位为可运行的最小治理内核，不包含 Web 管理平台、向量数据库、自动语义裁决或细粒度读取权限。后续候选能力记录在 [feature/2026-07-11.md](feature/2026-07-11.md)，应依据真实规模和协作数据逐步引入。
+当前版本定位为可运行的治理内核，包含本地 Web 管理入口，但不包含远程企业管理平台、向量数据库、自动语义裁决或细粒度读取权限。后续候选能力记录在 [future/2026-07-11.md](future/2026-07-11.md)，应依据真实规模和协作数据逐步引入。

@@ -18,7 +18,7 @@ def web_repo(tmp_path):
     for name in ("schemas", "policies", "templates"):
         shutil.copytree(ROOT / name, root / name)
     shutil.copy(ROOT / ".knowledge-config.yaml", root / ".knowledge-config.yaml")
-    for name in ("team-conventions", "tech-wiki", "biz-wiki", "archive", "evidence", "reports", "contributions/pending", "contributions/conflicts"):
+    for name in ("team-conventions", "tech-wiki", "biz-wiki", "docs/knowledge", "archive", "evidence", "reports", "contributions/pending", "contributions/conflicts"):
         (root / name).mkdir(parents=True, exist_ok=True)
     (root / "log.md").write_text("# 日志\n\n", encoding="utf-8")
     return root
@@ -76,7 +76,7 @@ def test_page_health_and_form_options(client):
     options = client.get("/api/meta/form-options").json()
     assert options["knowledge_types"] == ["model", "decision", "guideline", "pitfall", "process"]
     assert options["defaults"]["maturity"] == "draft"
-    assert "project" not in options["scopes"]
+    assert options["scopes"] == ["team", "tech", "biz", "project"]
     assert options["phases"][-1] == "ARCHIVE"
     css = client.get("/static/app.css").text
     javascript = client.get("/static/app.js").text
@@ -113,6 +113,22 @@ def test_create_and_update_knowledge_through_api(client, web_repo):
     assert update.json()["metadata"]["maturity"] == "draft"
     assert len(update.json()["metadata"]["source_references"]) == 2
     assert update.json()["metadata"]["review_policy_override"]["interval"] == "90d"
+
+
+def test_create_project_knowledge_through_api(client, web_repo):
+    payload = guideline_payload()
+    payload.update({"scope": "project", "domain": "knowledge-base", "title": "项目知识必须随项目保存"})
+
+    suggested = client.get("/api/knowledge/suggest-id", params={"scope": "project", "type": "guideline"})
+    assert suggested.status_code == 200
+    assert suggested.json()["id"] == "PK-GDL-001"
+
+    response = client.post("/api/knowledge", json=payload)
+    assert response.status_code == 200, response.text
+    path = web_repo / "docs" / "knowledge" / "guidelines" / "PK-GDL-001.md"
+    assert path.exists()
+    project_catalog = web_repo / "docs" / "knowledge" / "catalog.md"
+    assert "PK-GDL-001" in project_catalog.read_text(encoding="utf-8")
 
 
 def test_pydantic_rejects_incomplete_type_specific_content(client):

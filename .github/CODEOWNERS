@@ -1,4 +1,9 @@
 /.knowledge-config.yaml @knowledge-core-team
 /policies/ @knowledge-core-team
 /schemas/ @knowledge-core-team
+/team-conventions/ @knowledge-core-team
+/tech-wiki/ @knowledge-core-team
+/docs/knowledge/ @knowledge-core-team
+/project-profiles/ @knowledge-core-team
+/contributions/conflicts/ @knowledge-core-team
 /biz-wiki/advertising/processes/ @advertising-operations

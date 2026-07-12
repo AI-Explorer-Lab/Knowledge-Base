@@ -77,7 +77,7 @@
             <div class="readonly-field"><span>状态 <small>治理字段，只读</small></span><strong id="currentStatus" class="badge active">active</strong></div>
             <div class="readonly-note">成熟度和状态只能通过 Evidence、Policy 与治理提案变更。</div>
             <label class="wide">标题 <span>必填</span><input id="knowledgeTitle" required maxlength="160" placeholder="用一句话表达知识结论"></label>
-            <label>领域 <span>必填</span><input id="knowledgeDomain" required pattern="[a-z0-9][a-z0-9-]*" placeholder="backend-architecture"></label>
+            <label><span id="knowledgeDomainLabel">领域</span> <span id="knowledgeDomainHint">必填</span><input id="knowledgeDomain" required pattern="[a-z0-9][a-z0-9-]*" placeholder="backend-architecture"></label>
             <label>风险等级 <span>必填</span><select id="knowledgeRisk"></select></label>
             <label>Owner <span>必填</span><input id="knowledgeOwner" required></label>
             <label>Maintainers <span>逗号分隔</span><input id="knowledgeMaintainers" placeholder="backend-team, platform-team"></label>

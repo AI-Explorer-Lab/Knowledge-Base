@@ -8,7 +8,7 @@ from .models import EvidenceRecord, KnowledgeRecord
 from .yaml_io import load_front_matter, load_yaml
 
 
-KNOWLEDGE_ROOTS = ("team-conventions", "tech-wiki", "biz-wiki", "archive")
+KNOWLEDGE_ROOTS = ("team-conventions", "tech-wiki", "biz-wiki", "docs/knowledge", "archive")
 
 
 class Repository:
@@ -45,6 +45,22 @@ class Repository:
             if knowledge_id in result:
                 raise KnowledgeError(f"{path}: Evidence knowledge_id 重复：{knowledge_id}")
             result[knowledge_id] = EvidenceRecord(path, knowledge_id, data.get("events") or [])
+        return result
+
+    def load_project_profiles(self) -> Dict[str, dict]:
+        result: Dict[str, dict] = {}
+        directory = self.root / "project-profiles"
+        if not directory.exists():
+            return result
+        for path in sorted(directory.glob("*.yaml")):
+            data = load_yaml(path, {})
+            if not isinstance(data, dict):
+                raise KnowledgeError(f"{path}: 项目画像必须是对象")
+            project = data.get("project") or {}
+            project_id = str(project.get("id", "")) if isinstance(project, dict) else ""
+            if project_id in result:
+                raise KnowledgeError(f"{path}: 项目画像 ID 重复：{project_id}")
+            result[project_id] = data
         return result
 
     def config(self) -> dict:
