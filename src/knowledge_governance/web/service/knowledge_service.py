@@ -11,6 +11,7 @@ from ...lifecycle import derived_dates, evaluate
 from ...models import KnowledgeRecord
 from ...repository import Repository
 from ...validator import validate
+from ...yaml_io import atomic_write, dump_yaml
 from ..constant.enums import KnowledgeScope, KnowledgeType
 from ..domain.models import CurrentUser
 from ..domain.req import EvidenceCreateRequest, KnowledgeUpsertRequest
@@ -122,6 +123,44 @@ class KnowledgeService:
             if proposals:
                 result.append({"knowledge_id": record.id, "title": record.metadata["title"], "proposals": proposals, "derived": derived_dates(record.metadata, events, review)})
         return result
+
+    def transition_options(self, knowledge_id: str, today: Optional[dt.date] = None) -> Dict[str, Any]:
+        record = self.mapper.get(knowledge_id)
+        evidence = self.repository.load_evidence().get(knowledge_id)
+        events = evidence.events if evidence else []
+        review = self.repository.policy("review")
+        proposals = evaluate(record.metadata, events, review, self.repository.policy("maturity"), today or dt.date.today())
+        return {
+            "knowledge_id": knowledge_id,
+            "title": record.metadata["title"],
+            "current": {"maturity": record.metadata["maturity"], "status": record.metadata["status"]},
+            "derived": derived_dates(record.metadata, events, review),
+            "proposals": proposals,
+        }
+
+    def create_transition_proposal(self, knowledge_id: str, user: CurrentUser, today: Optional[dt.date] = None) -> Dict[str, Any]:
+        options = self.transition_options(knowledge_id, today)
+        if not options["proposals"]:
+            raise BusinessException("当前证据和策略没有产生可申请的治理变更", 409, "NO_TRANSITION_CANDIDATE")
+        proposal_id = f"TR-{uuid.uuid4().hex[:12].upper()}"
+        created_at = utc_now()
+        data = {
+            "schema_version": 1,
+            "proposal_id": proposal_id,
+            "created_at": created_at,
+            "proposed_by": user.id,
+            "knowledge_id": knowledge_id,
+            "path": str(self.mapper.get(knowledge_id).path.relative_to(self.root)),
+            "current": options["current"],
+            "derived": options["derived"],
+            "proposals": options["proposals"],
+            "approval_required": True,
+        }
+        filename = f"{knowledge_id}-{dt.date.today().isoformat()}-{proposal_id}.yaml"
+        output = self.root / "contributions" / "pending" / filename
+        atomic_write(output, dump_yaml(data))
+        self._append_log(f"transition proposal {proposal_id} for {knowledge_id} by {user.id}")
+        return {"proposal_id": proposal_id, "path": str(output.relative_to(self.root)), "proposal": data}
 
     def rebuild_catalog(self) -> List[str]:
         paths = build_catalogs(self.root, self.mapper.list(), self.repository.load_evidence(), self.repository.policy("review"))

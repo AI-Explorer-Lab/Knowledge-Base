@@ -67,6 +67,11 @@ def test_page_health_and_form_options(client):
     assert 'class="check-grid phase-row"' in page
     assert 'id="applicableConditions" class="auto-grow"' in page
     assert 'id="cancelEdit"' in page
+    assert 'id="requestTransition"' in page
+    assert 'id="currentMaturity"' in page
+    assert '<th>类型</th><th>范围</th><th>成熟度</th>' in page
+    assert "<th>领域</th>" not in page
+    assert "类型与范围" not in page
     assert client.get("/health").json()["status"] == "ok"
     options = client.get("/api/meta/form-options").json()
     assert options["knowledge_types"] == ["model", "decision", "guideline", "pitfall", "process"]
@@ -140,6 +145,14 @@ def test_record_validation_event_and_get_lifecycle_candidate(client, web_repo):
     assert "EVT-WEB-001" in evidence
     candidates = client.get("/api/lifecycle/candidates").json()["items"]
     assert any(item["knowledge_id"] == knowledge_id and item["proposals"][0]["to"] == "verified" for item in candidates)
+    options = client.get(f"/api/knowledge/{knowledge_id}/transition-options").json()
+    assert options["current"] == {"maturity": "draft", "status": "active"}
+    assert options["proposals"][0]["to"] == "verified"
+    proposal = client.post(f"/api/knowledge/{knowledge_id}/transition-proposal", headers={"X-User": "alice"})
+    assert proposal.status_code == 200, proposal.text
+    proposal_path = web_repo / proposal.json()["path"]
+    assert proposal_path.exists()
+    assert "proposed_by: alice" in proposal_path.read_text(encoding="utf-8")
 
 
 def test_validation_event_requires_independence_fields(client):

@@ -20,28 +20,31 @@
 
 ## 快速开始
 
-需要 Python 3.9 或更高版本。建议使用独立虚拟环境：
+需要 Python 3.9 或更高版本。项目当前使用名为 `knowledge-base` 的 Conda 环境；首次安装时执行：
 
 ```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install --upgrade pip setuptools
-.venv/bin/python -m pip install -e '.[dev]'
+conda create -n knowledge-base python=3.11 -y
+conda activate knowledge-base
+python -m pip install --upgrade pip setuptools
+python -m pip install -e '.[dev]'
 ```
 
 运行完整检查：
 
 ```bash
-.venv/bin/knowledge lint
-.venv/bin/knowledge build-catalog
-.venv/bin/pytest -q
+conda activate knowledge-base
+knowledge lint
+knowledge build-catalog
+pytest -q
 ```
 
-如果已经使用本项目的 Conda 环境：
+以后进入项目只需激活已有环境：
 
 ```bash
 conda activate knowledge-base
-knowledge lint
 ```
+
+安装命令中的 `-e` 表示以可编辑模式安装当前项目。安装工具会读取 `pyproject.toml` 的 `[project.scripts]` 配置，并在当前 Conda 环境的可执行目录中生成 `knowledge` 命令；该命令实际调用 `knowledge_governance.cli:main`。因此先激活环境后，可以直接使用 `knowledge lint`、`knowledge web` 等子命令，无需写 Python 文件路径。
 
 ## 启动管理网页
 

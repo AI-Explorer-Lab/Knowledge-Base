@@ -47,7 +47,7 @@
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>ID / 标题</th><th>类型与范围</th><th>成熟度</th><th>状态</th><th>Owner</th><th>下次复核</th><th></th></tr></thead>
+          <thead><tr><th>ID / 标题</th><th>类型</th><th>范围</th><th>成熟度</th><th>状态</th><th>Owner</th><th>下次复核</th><th></th></tr></thead>
           <tbody id="knowledgeRows"></tbody>
         </table>
       </div>
@@ -61,6 +61,7 @@
           <p>系统自动设置 Draft、Active、日期和文件位置。标有“必填”的内容需要人工判断。</p>
         </div>
         <div class="editor-actions">
+          <button id="requestTransition" class="button primary hidden">申请治理变更</button>
           <button id="cancelEdit" class="button secondary hidden">取消编辑</button>
           <button id="resetEditor" class="button ghost">清空表单</button>
         </div>
@@ -72,6 +73,9 @@
             <label>知识 ID <span>自动建议</span><input id="knowledgeId" name="id" readonly></label>
             <label>类型 <span>必填</span><select id="knowledgeType" required></select></label>
             <label>范围 <span>必填</span><select id="knowledgeScope" required></select></label>
+            <div class="readonly-field"><span>成熟度 <small>治理字段，只读</small></span><strong id="currentMaturity" class="badge draft">draft</strong></div>
+            <div class="readonly-field"><span>状态 <small>治理字段，只读</small></span><strong id="currentStatus" class="badge active">active</strong></div>
+            <div class="readonly-note">成熟度和状态只能通过 Evidence、Policy 与治理提案变更。</div>
             <label class="wide">标题 <span>必填</span><input id="knowledgeTitle" required maxlength="160" placeholder="用一句话表达知识结论"></label>
             <label>领域 <span>必填</span><input id="knowledgeDomain" required pattern="[a-z0-9][a-z0-9-]*" placeholder="backend-architecture"></label>
             <label>风险等级 <span>必填</span><select id="knowledgeRisk"></select></label>
@@ -151,6 +155,25 @@
       <div id="lifecycleCards" class="card-grid"></div>
     </section>
   </main>
+
+  <div id="transitionModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="transitionTitle">
+    <div class="modal-card">
+      <div class="modal-heading">
+        <div>
+          <p class="section-label">GOVERNANCE TRANSITION</p>
+          <h2 id="transitionTitle">申请治理变更</h2>
+        </div>
+        <button id="closeTransition" class="icon-button" aria-label="关闭治理变更弹窗">×</button>
+      </div>
+      <p class="hint">系统只展示当前 Evidence 和 Policy 能够解释的候选。提交后生成待审核提案，不直接修改正式知识。</p>
+      <div id="transitionSummary" class="transition-summary"></div>
+      <div id="transitionOptions" class="transition-options"></div>
+      <div class="form-actions modal-actions">
+        <button id="submitTransition" class="button primary">生成待审核提案</button>
+        <button id="cancelTransition" class="button secondary">取消</button>
+      </div>
+    </div>
+  </div>
 
   <script src="/static/app.js" defer></script>
 </body>

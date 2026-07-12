@@ -80,13 +80,14 @@ async function loadKnowledge() {
   $("knowledgeRows").innerHTML = data.items.length ? data.items.map((item) => `
     <tr>
       <td class="id-title"><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.id)}</span></td>
-      <td><span class="badge">${escapeHtml(item.type)}</span> <span class="badge">${escapeHtml(item.scope)}</span><br><small>${escapeHtml(item.domain)}</small></td>
+      <td><span class="badge">${escapeHtml(item.type)}</span></td>
+      <td><span class="badge">${escapeHtml(item.scope)}</span></td>
       <td><span class="badge ${escapeHtml(item.maturity)}">${escapeHtml(item.maturity)}</span></td>
       <td><span class="badge ${escapeHtml(item.status)}">${escapeHtml(item.status)}</span></td>
       <td>${escapeHtml(item.owner)}</td>
       <td>${escapeHtml(item.derived.next_review_at)}</td>
       <td><button class="button ghost" onclick="editKnowledge('${escapeHtml(item.id)}')">编辑</button></td>
-    </tr>`).join("") : `<tr><td colspan="7" class="empty">没有符合条件的知识</td></tr>`;
+    </tr>`).join("") : `<tr><td colspan="8" class="empty">没有符合条件的知识</td></tr>`;
   $("evidenceKnowledge").innerHTML = data.items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.id)} · ${escapeHtml(item.title)}</option>`).join("");
 }
 
@@ -125,6 +126,11 @@ function resetEditor() {
   $("knowledgePolarity").value = "recommend";
   $("editorTitle").textContent = "新建知识";
   $("editorMode").textContent = "保存后自动运行 Lint 并重建 Catalog";
+  $("currentMaturity").textContent = "draft";
+  $("currentMaturity").className = "badge draft";
+  $("currentStatus").textContent = "active";
+  $("currentStatus").className = "badge active";
+  $("requestTransition").classList.add("hidden");
   $("cancelEdit").classList.add("hidden");
   document.querySelectorAll("#phaseOptions input").forEach((item) => item.checked = false);
   renderSections();
@@ -181,6 +187,11 @@ async function editKnowledge(id) {
     refreshAutoGrow();
     $("editorTitle").textContent = `编辑 ${id}`;
     $("editorMode").textContent = `保留 maturity=${meta.maturity}、status=${meta.status}；状态变化需走治理提案`;
+    $("currentMaturity").textContent = meta.maturity;
+    $("currentMaturity").className = `badge ${meta.maturity}`;
+    $("currentStatus").textContent = meta.status;
+    $("currentStatus").className = `badge ${meta.status}`;
+    $("requestTransition").classList.remove("hidden");
     $("cancelEdit").classList.remove("hidden");
     switchTab("editor");
   } catch (error) { notify(error.message, true); }
@@ -244,6 +255,32 @@ async function loadLifecycle() {
   } catch (error) { notify(error.message, true); }
 }
 
+function closeTransitionModal() {
+  $("transitionModal").classList.add("hidden");
+}
+
+async function openTransitionModal() {
+  if (!state.editingId) return;
+  try {
+    const data = await api(`/api/knowledge/${encodeURIComponent(state.editingId)}/transition-options`);
+    $("transitionTitle").textContent = `申请治理变更 · ${data.knowledge_id}`;
+    $("transitionSummary").innerHTML = `<span class="badge ${escapeHtml(data.current.maturity)}">成熟度：${escapeHtml(data.current.maturity)}</span><span class="badge ${escapeHtml(data.current.status)}">状态：${escapeHtml(data.current.status)}</span><span class="badge">下次复核：${escapeHtml(data.derived.next_review_at)}</span>`;
+    $("transitionOptions").innerHTML = data.proposals.length ? data.proposals.map((proposal) => `
+      <article class="transition-option"><h3>${escapeHtml(proposal.kind === "maturity" ? "成熟度" : "状态")}：${escapeHtml(proposal.from)} → ${escapeHtml(proposal.to)}</h3><p>${escapeHtml(proposal.reasons.join("；"))}</p></article>`).join("") : `<div class="empty">当前证据和策略没有产生可申请的治理变更。请先记录验证、复核、失败或冲突 Evidence。</div>`;
+    $("submitTransition").disabled = data.proposals.length === 0;
+    $("transitionModal").classList.remove("hidden");
+  } catch (error) { notify(error.message, true); }
+}
+
+async function submitTransitionProposal() {
+  if (!state.editingId) return;
+  try {
+    const data = await api(`/api/knowledge/${encodeURIComponent(state.editingId)}/transition-proposal`, {method: "POST", body: "{}"});
+    closeTransitionModal();
+    notify(`已生成待审核提案：${data.proposal_id}`);
+  } catch (error) { notify(error.message, true); }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("input", (event) => {
     if (event.target.matches("textarea")) autoGrow(event.target);
@@ -259,6 +296,11 @@ document.addEventListener("DOMContentLoaded", () => {
     resetEditor();
     notify("已取消编辑，当前为新的空白知识表单。");
   });
+  $("requestTransition").addEventListener("click", openTransitionModal);
+  $("closeTransition").addEventListener("click", closeTransitionModal);
+  $("cancelTransition").addEventListener("click", closeTransitionModal);
+  $("submitTransition").addEventListener("click", submitTransitionProposal);
+  $("transitionModal").addEventListener("click", (event) => { if (event.target === $("transitionModal")) closeTransitionModal(); });
   $("knowledgeType").addEventListener("change", () => { renderSections(); suggestId(); });
   $("knowledgeScope").addEventListener("change", suggestId);
   $("validateKnowledge").addEventListener("click", () => validateKnowledge().catch((error) => notify(error.message, true)));

@@ -13,7 +13,7 @@ from .controller.catalog_api import router as catalog_router
 from .controller.evidence_api import router as evidence_router
 from .controller.health_api import router as health_router
 from .controller.knowledge_api import router as knowledge_router
-from .controller.lifecycle_api import router as lifecycle_router
+from .controller.lifecycle_api import knowledge_transition_router, router as lifecycle_router
 from .controller.meta_api import router as meta_router
 from .controller.pages import configure_templates, router as pages_router
 from .exceptions.exception_handler import register_exception_handlers
@@ -55,6 +55,6 @@ def create_app(root: Path, environment: str = "development") -> FastAPI:
 
     register_request_logging(app)
     register_exception_handlers(app)
-    for router in (health_router, meta_router, knowledge_router, evidence_router, lifecycle_router, catalog_router, pages_router):
+    for router in (health_router, meta_router, knowledge_router, evidence_router, lifecycle_router, knowledge_transition_router, catalog_router, pages_router):
         app.include_router(router)
     return app
