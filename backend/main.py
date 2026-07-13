@@ -14,6 +14,7 @@ from backend.exceptions.exception_handler import install_exception_handlers
 from backend.middlewares.auth_dependency import IdentityService
 from backend.middlewares.request_logging import RequestLoggingMiddleware
 from backend.service.knowledge_service import KnowledgeService
+from backend.service.knowledge_template_service import KnowledgeTemplateService
 from backend.service.member_service import MemberService
 from backend.service.preview_token_service import PreviewTokenService
 from backend.service.repository_lock import RepositoryWriteLock
@@ -69,6 +70,7 @@ def create_app(settings: Any = None) -> FastAPI:
     app.state.settings = settings
     app.state.identity = IdentityService(settings)
     app.state.members = member_service
+    app.state.knowledge_templates = KnowledgeTemplateService(member_service)
     app.state.knowledge = KnowledgeService(
         settings.repo_root,
         member_service,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import {
   Bold,
   CheckSquare,
@@ -15,13 +15,21 @@ import {
   LockKeyhole,
   Maximize2,
   Quote,
+  RefreshCw,
   Strikethrough,
   Table2,
   X,
 } from 'lucide-vue-next'
+import { getKnowledgeTemplate } from '@/api'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import type { KnowledgeDraft, KnowledgeLayer, KnowledgeOptions, KnowledgeType } from '@/types'
+import { ApiError } from '@/types'
 import type { KnowledgeErrors } from '@/utils/knowledge'
-import { categoryForType, formatLayer } from '@/utils/knowledge'
+import {
+  categoryForType,
+  formatLayer,
+  shouldConfirmTemplateReplacement,
+} from '@/utils/knowledge'
 
 const props = defineProps<{
   draft: KnowledgeDraft
@@ -30,9 +38,28 @@ const props = defineProps<{
   errors: KnowledgeErrors
 }>()
 
+const emit = defineEmits<{
+  'template-loading': [loading: boolean]
+}>()
+
 const editor = ref<HTMLTextAreaElement | null>(null)
 const tagField = ref<HTMLInputElement | null>(null)
 const tagInput = ref('')
+const selectedType = ref<KnowledgeType>(props.draft.type)
+const templateLoading = ref(false)
+const templateError = ref('')
+const loadedTemplateType = ref<KnowledgeType | null>(null)
+const loadedTemplateContent = ref<string | null>(null)
+const pendingTemplateType = ref<KnowledgeType | null>(null)
+const retryTemplateType = ref<KnowledgeType | null>(null)
+const templateCache = new Map<KnowledgeType, string>()
+let initialTemplateRequested = false
+let templateRequestId = 0
+
+onBeforeUnmount(() => {
+  templateRequestId += 1
+  templateLoading.value = false
+})
 
 const knowledgeTypes = computed(() => props.options?.knowledge_types ?? [
   { value: 'model' as const, label: 'model' },
@@ -49,6 +76,25 @@ const selectedLayer = computed<KnowledgeLayer>(() =>
 )
 
 const categories = computed(() => props.options?.categories[selectedLayer.value] ?? [])
+
+watch(templateLoading, (loading) => emit('template-loading', loading))
+
+watch(
+  () => props.draft.type,
+  (type) => {
+    if (!templateLoading.value && pendingTemplateType.value === null) selectedType.value = type
+  },
+)
+
+watch(
+  () => props.options,
+  (availableOptions) => {
+    if (!availableOptions || initialTemplateRequested) return
+    initialTemplateRequested = true
+    if (!props.draft.content.trim()) void loadTemplate(props.draft.type, 'initial')
+  },
+  { immediate: true },
+)
 
 watch(
   () => [props.draft.scope, props.draft.type, props.draft.layer, props.options] as const,
@@ -103,6 +149,109 @@ function removeSource(index: number) {
   props.draft.source_references.splice(index, 1)
 }
 
+async function templateContent(type: KnowledgeType): Promise<string> {
+  const cached = templateCache.get(type)
+  if (cached !== undefined) return cached
+  const response = await getKnowledgeTemplate(type)
+  if (response.type !== type || !response.content.trim()) {
+    throw new Error('后端返回的知识模板无效')
+  }
+  templateCache.set(type, response.content)
+  return response.content
+}
+
+function templateErrorMessage(reason: unknown): string {
+  return reason instanceof ApiError
+    ? reason.message
+    : reason instanceof Error
+      ? reason.message
+      : '知识模板加载失败，请稍后重试'
+}
+
+async function loadTemplate(type: KnowledgeType, mode: 'initial' | 'switch') {
+  const requestId = ++templateRequestId
+  const contentBeforeRequest = props.draft.content
+  templateLoading.value = true
+  templateError.value = ''
+  retryTemplateType.value = null
+
+  try {
+    const content = await templateContent(type)
+    if (requestId !== templateRequestId) return
+
+    if (mode === 'initial') {
+      if (props.draft.type !== type || props.draft.content !== contentBeforeRequest) return
+    } else {
+      props.draft.type = type
+      if (props.draft.scope === 'team') {
+        props.draft.category = categoryForType(type, selectedLayer.value, props.options)
+      }
+    }
+
+    props.draft.content = content
+    selectedType.value = type
+    loadedTemplateType.value = type
+    loadedTemplateContent.value = content
+  } catch (reason) {
+    if (requestId !== templateRequestId) return
+    selectedType.value = props.draft.type
+    retryTemplateType.value = type
+    templateError.value = mode === 'switch'
+      ? `${templateErrorMessage(reason)}，已保留原有类型和正文`
+      : templateErrorMessage(reason)
+  } finally {
+    if (requestId === templateRequestId) templateLoading.value = false
+  }
+}
+
+function requestTypeChange(type: KnowledgeType) {
+  if (type === props.draft.type) {
+    templateRequestId += 1
+    templateLoading.value = false
+    templateError.value = ''
+    retryTemplateType.value = null
+    selectedType.value = props.draft.type
+    return
+  }
+  const currentTemplate = loadedTemplateType.value === props.draft.type
+    ? loadedTemplateContent.value
+    : null
+  if (shouldConfirmTemplateReplacement(props.draft.content, currentTemplate)) {
+    pendingTemplateType.value = type
+    selectedType.value = props.draft.type
+    return
+  }
+  void loadTemplate(type, 'switch')
+}
+
+function onTypeChange() {
+  requestTypeChange(selectedType.value)
+}
+
+function cancelTemplateSwitch() {
+  pendingTemplateType.value = null
+  selectedType.value = props.draft.type
+}
+
+function confirmTemplateSwitch() {
+  const type = pendingTemplateType.value
+  pendingTemplateType.value = null
+  if (!type) return
+  selectedType.value = type
+  void loadTemplate(type, 'switch')
+}
+
+function retryTemplate() {
+  const type = retryTemplateType.value ?? props.draft.type
+  templateError.value = ''
+  selectedType.value = type
+  if (type === props.draft.type && !props.draft.content.trim()) {
+    void loadTemplate(type, 'initial')
+    return
+  }
+  requestTypeChange(type)
+}
+
 async function wrapSelection(prefix: string, suffix = prefix, placeholder = '文本') {
   const input = editor.value
   if (!input) return
@@ -131,11 +280,6 @@ async function prefixLines(prefix: string) {
   input.setSelectionRange(before, before + replaced.length)
 }
 
-function onTypeChange() {
-  if (props.draft.scope === 'team') {
-    props.draft.category = categoryForType(props.draft.type, selectedLayer.value, props.options)
-  }
-}
 </script>
 
 <template>
@@ -182,7 +326,7 @@ function onTypeChange() {
     <div class="form-row">
       <label for="type">知识类型 <em>*</em></label>
       <div class="select-shell">
-        <select id="type" v-model="draft.type" @change="onTypeChange">
+        <select id="type" v-model="selectedType" :aria-busy="templateLoading" @change="onTypeChange">
           <option v-for="item in knowledgeTypes" :key="item.value" :value="item.value">{{ item.label }}</option>
         </select>
         <ChevronDown :size="17" />
@@ -266,33 +410,68 @@ function onTypeChange() {
 
     <div class="form-row form-row-editor">
       <label for="knowledge-content">知识正文 <em>*</em></label>
-      <div class="editor-shell" :class="{ invalid: errors.content }">
-        <div class="editor-toolbar" aria-label="Markdown 编辑工具">
-          <button type="button" title="二级标题" @click="prefixLines('## ')"><Heading2 :size="18" /></button>
-          <span class="toolbar-divider" />
-          <button type="button" title="加粗" @click="wrapSelection('**')"><Bold :size="17" /></button>
-          <button type="button" title="斜体" @click="wrapSelection('_')"><Italic :size="17" /></button>
-          <button type="button" title="删除线" @click="wrapSelection('~~')"><Strikethrough :size="17" /></button>
-          <button type="button" title="行内代码" @click="wrapSelection('`')"><Code2 :size="17" /></button>
-          <button type="button" title="链接" @click="wrapSelection('[', '](https://)', '链接文字')"><Link2 :size="17" /></button>
-          <button type="button" title="无序列表" @click="prefixLines('- ')"><List :size="18" /></button>
-          <button type="button" title="有序列表" @click="prefixLines('1. ')"><ListOrdered :size="18" /></button>
-          <button type="button" title="任务项" @click="prefixLines('- [ ] ')"><CheckSquare :size="17" /></button>
-          <button type="button" title="引用" @click="prefixLines('> ')"><Quote :size="17" /></button>
-          <button type="button" title="表格" @click="wrapSelection('| 列 1 | 列 2 |\n| --- | --- |\n| ', ' | 内容 |', '内容')"><Table2 :size="17" /></button>
-          <span class="toolbar-spacer" />
-          <button type="button" title="预览将在下一步显示"><Eye :size="18" /></button>
-          <button type="button" title="扩大编辑区" @click="editor?.focus()"><Maximize2 :size="17" /></button>
+      <div>
+        <div
+          class="template-guidance"
+          :class="{ 'template-guidance-error': templateError }"
+          aria-live="polite"
+        >
+          <template v-if="templateLoading">
+            <span class="template-spinner" aria-hidden="true" />
+            <span>正在加载 {{ selectedType }} 模板…</span>
+          </template>
+          <template v-else-if="templateError">
+            <span>{{ templateError }}</span>
+            <button class="text-button template-retry" type="button" @click="retryTemplate">
+              <RefreshCw :size="14" />重新加载
+            </button>
+          </template>
+          <template v-else>
+            <Info :size="16" />
+            <span>正文已按知识类型提供填写示例，请根据真实知识修改内容。</span>
+          </template>
         </div>
-        <textarea
-          id="knowledge-content"
-          ref="editor"
-          v-model="draft.content"
-          spellcheck="false"
-          aria-label="Markdown 知识正文"
-        />
+        <div
+          class="editor-shell"
+          :class="{ invalid: errors.content, 'template-is-loading': templateLoading }"
+        >
+          <div class="editor-toolbar" aria-label="Markdown 编辑工具">
+            <button type="button" title="二级标题" @click="prefixLines('## ')"><Heading2 :size="18" /></button>
+            <span class="toolbar-divider" />
+            <button type="button" title="加粗" @click="wrapSelection('**')"><Bold :size="17" /></button>
+            <button type="button" title="斜体" @click="wrapSelection('_')"><Italic :size="17" /></button>
+            <button type="button" title="删除线" @click="wrapSelection('~~')"><Strikethrough :size="17" /></button>
+            <button type="button" title="行内代码" @click="wrapSelection('`')"><Code2 :size="17" /></button>
+            <button type="button" title="链接" @click="wrapSelection('[', '](https://)', '链接文字')"><Link2 :size="17" /></button>
+            <button type="button" title="无序列表" @click="prefixLines('- ')"><List :size="18" /></button>
+            <button type="button" title="有序列表" @click="prefixLines('1. ')"><ListOrdered :size="18" /></button>
+            <button type="button" title="任务项" @click="prefixLines('- [ ] ')"><CheckSquare :size="17" /></button>
+            <button type="button" title="引用" @click="prefixLines('> ')"><Quote :size="17" /></button>
+            <button type="button" title="表格" @click="wrapSelection('| 列 1 | 列 2 |\n| --- | --- |\n| ', ' | 内容 |', '内容')"><Table2 :size="17" /></button>
+            <span class="toolbar-spacer" />
+            <button type="button" title="预览将在下一步显示"><Eye :size="18" /></button>
+            <button type="button" title="扩大编辑区" @click="editor?.focus()"><Maximize2 :size="17" /></button>
+          </div>
+          <textarea
+            id="knowledge-content"
+            ref="editor"
+            v-model="draft.content"
+            :disabled="templateLoading"
+            spellcheck="false"
+            aria-label="Markdown 知识正文"
+          />
+        </div>
       </div>
       <p v-if="errors.content" class="field-error editor-error">{{ errors.content }}</p>
     </div>
+    <ConfirmDialog
+      :open="pendingTemplateType !== null"
+      title="替换知识正文？"
+      description="当前正文已经被修改。切换知识类型会使用新模板替换现有正文，此操作无法撤销。"
+      confirm-text="替换正文"
+      danger
+      @cancel="cancelTemplateSwitch"
+      @confirm="confirmTemplateSwitch"
+    />
   </section>
 </template>

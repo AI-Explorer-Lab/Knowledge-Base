@@ -4,6 +4,7 @@ import {
   mockCreateMember,
   mockGetCurrentUser,
   mockGetKnowledgeOptions,
+  mockGetKnowledgeTemplate,
   mockGetKnowledgeById,
   mockListKnowledge,
   mockGetMembers,
@@ -18,6 +19,8 @@ import type {
   KnowledgeLayer,
   KnowledgeListResponse,
   KnowledgeOptions,
+  KnowledgeTemplate,
+  KnowledgeType,
   Member,
   MembersResponse,
   PreviewResponse,
@@ -34,6 +37,11 @@ export const getCurrentUser = (): Promise<CurrentUserResponse> =>
 
 export const getKnowledgeOptions = (): Promise<KnowledgeOptions> =>
   isMockApi ? mockGetKnowledgeOptions() : apiRequest('/knowledge/options')
+
+export const getKnowledgeTemplate = (type: KnowledgeType): Promise<KnowledgeTemplate> =>
+  isMockApi
+    ? mockGetKnowledgeTemplate(type)
+    : apiRequest(`/knowledge/templates/${encodeURIComponent(type)}`)
 
 export const getKnowledgeById = (knowledgeId: string): Promise<{ knowledge: KnowledgeFile }> =>
   isMockApi

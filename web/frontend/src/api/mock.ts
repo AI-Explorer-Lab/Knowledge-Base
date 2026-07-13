@@ -6,6 +6,8 @@ import type {
   KnowledgeLayer,
   KnowledgeListResponse,
   KnowledgeOptions,
+  KnowledgeTemplate,
+  KnowledgeType,
   Member,
   MembersResponse,
   PreviewResponse,
@@ -95,6 +97,115 @@ const options: KnowledgeOptions = {
   },
   business_domains: ['order', 'customer', 'billing'],
   preview_ttl_seconds: 600,
+}
+
+const knowledgeTemplates: Record<KnowledgeType, string> = {
+  model: `## 定义
+
+请说明这个模型表示什么，以及它解决什么问题。
+
+## 组成或字段
+
+请列出主要组成部分或字段，并说明各自含义。
+
+## 关系
+
+请说明它与其他模型、对象或概念之间的关系。
+
+## 约束
+
+请记录必须遵守的规则、边界条件和不变量。
+
+## 示例
+
+请提供一个能够帮助读者理解该模型的具体示例。
+`,
+  decision: `## 背景
+
+请说明需要作出这项决策的背景和要解决的问题。
+
+## 最终决策
+
+请清楚写出最终选择及其适用范围。
+
+## 选择原因
+
+请说明作出该选择的主要依据。
+
+## 备选方案
+
+请列出评估过但未采用的方案，以及未采用的原因。
+
+## 影响
+
+请记录这项决策带来的收益、代价、风险和后续工作。
+`,
+  guideline: `## 适用场景
+
+请说明这条指南适用于哪些任务、系统或团队场景。
+
+## 推荐做法
+
+请列出建议遵循的具体做法。
+
+## 禁止做法
+
+请列出应避免的做法，并说明原因。
+
+## 示例
+
+请提供正确示例；如有必要，也可补充错误示例用于对照。
+
+## 检查方式
+
+请说明如何确认这条指南已经被正确执行。
+`,
+  pitfall: `## 问题现象
+
+请描述问题发生时可以观察到的现象或错误信息。
+
+## 影响
+
+请说明问题会影响哪些用户、系统或工作流程。
+
+## 原因
+
+请记录已经确认的根本原因和常见触发条件。
+
+## 排查步骤
+
+请按顺序列出定位问题的方法。
+
+## 解决与预防
+
+请说明解决方法，以及以后如何避免再次发生。
+`,
+  process: `## 流程目标
+
+请说明这套流程要完成的目标。
+
+## 适用范围
+
+请说明哪些角色、任务或场景需要执行这套流程。
+
+## 前置条件
+
+请列出开始流程前必须具备的条件和输入。
+
+## 执行步骤
+
+1. 请填写第一步。
+2. 请填写第二步。
+3. 请根据实际情况继续补充。
+
+## 异常处理
+
+请说明执行失败、中断或出现例外时如何处理。
+
+## 完成标准
+
+请列出能够判断流程已经完成的结果或检查项。
+`,
 }
 
 const typeCodes = {
@@ -194,6 +305,11 @@ export async function mockGetCurrentUser(): Promise<CurrentUserResponse> {
 export async function mockGetKnowledgeOptions(): Promise<KnowledgeOptions> {
   await wait(80)
   return structuredClone(options)
+}
+
+export async function mockGetKnowledgeTemplate(type: KnowledgeType): Promise<KnowledgeTemplate> {
+  await wait(80)
+  return { type, content: knowledgeTemplates[type] }
 }
 
 export async function mockPreviewKnowledge(draft: KnowledgeDraft): Promise<PreviewResponse> {

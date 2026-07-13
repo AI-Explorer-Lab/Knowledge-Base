@@ -4,17 +4,19 @@ from typing import Dict, Optional
 
 from fastapi import APIRouter, Depends, Query, Request, status
 
-from backend.constant.enums import KnowledgeLayer
+from backend.constant.enums import KnowledgeLayer, KnowledgeType
 from backend.domain.req import KnowledgeInput, ManualKnowledgeRequest
 from backend.domain.res import (
     CreateKnowledgeResponse,
     KnowledgeFileResponse,
     KnowledgeListResponse,
     KnowledgeOptionsResponse,
+    KnowledgeTemplateResponse,
     PreviewResponse,
 )
 from backend.middlewares.auth_dependency import current_member
 from backend.service.knowledge_service import KnowledgeService
+from backend.service.knowledge_template_service import KnowledgeTemplateService
 
 
 router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
@@ -24,6 +26,10 @@ def knowledge_service(request: Request) -> KnowledgeService:
     return request.app.state.knowledge
 
 
+def knowledge_template_service(request: Request) -> KnowledgeTemplateService:
+    return request.app.state.knowledge_templates
+
+
 @router.get("/options", response_model=KnowledgeOptionsResponse)
 def get_options(
     member: Dict[str, str] = Depends(current_member),
@@ -31,6 +37,18 @@ def get_options(
 ) -> Dict:
     service.members.require_role(member, "contributor", "maintainer")
     return service.options()
+
+
+@router.get(
+    "/templates/{knowledge_type}",
+    response_model=KnowledgeTemplateResponse,
+)
+def get_template(
+    knowledge_type: KnowledgeType,
+    member: Dict[str, str] = Depends(current_member),
+    service: KnowledgeTemplateService = Depends(knowledge_template_service),
+) -> Dict:
+    return service.get(knowledge_type, member)
 
 
 @router.post("/preview", response_model=PreviewResponse)

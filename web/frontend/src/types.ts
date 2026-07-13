@@ -36,6 +36,11 @@ export interface KnowledgeOptions {
   preview_ttl_seconds: number
 }
 
+export interface KnowledgeTemplate {
+  type: KnowledgeType
+  content: string
+}
+
 export interface KnowledgeDraft {
   scope: KnowledgeScope
   title: string

@@ -64,6 +64,14 @@ export function firstFieldError(errors: KnowledgeErrors): string | null {
   return Object.values(errors)[0] ?? null
 }
 
+export function shouldConfirmTemplateReplacement(
+  content: string,
+  loadedTemplateContent: string | null,
+): boolean {
+  if (!content.trim()) return false
+  return loadedTemplateContent === null || content !== loadedTemplateContent
+}
+
 export function categoryForType(type: KnowledgeType, layer: KnowledgeLayer, options?: KnowledgeOptions | null) {
   const preferred = TYPE_CATEGORY[type]
   if (!options) return ''

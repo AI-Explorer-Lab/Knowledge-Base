@@ -29,6 +29,7 @@ const {
 const errors = ref<KnowledgeErrors>({})
 const requestError = ref('')
 const baseline = ref('')
+const templateLoading = ref(false)
 
 const ownerId = computed(() => identity.value?.member.id ?? '')
 const pendingMetadata = computed(() => {
@@ -74,6 +75,10 @@ onBeforeRouteLeave((to) => {
 })
 
 async function goToPreview() {
+  if (templateLoading.value) {
+    pushToast('知识模板正在加载，请稍后再预览', 'info')
+    return
+  }
   if (!options.value) {
     requestError.value = sessionOptionsError.value || '知识治理选项尚未加载，请稍后重试'
     pushToast(requestError.value, 'error')
@@ -133,6 +138,7 @@ async function goToPreview() {
         :owner-id="ownerId"
         :options="options"
         :errors="errors"
+        @template-loading="templateLoading = $event"
       />
 
       <aside class="create-sidebar">
@@ -168,9 +174,14 @@ async function goToPreview() {
     <footer class="workflow-actions">
       <p><Info :size="18" />完成预览校验后即可确认注入</p>
       <div>
-        <button class="button button-secondary button-wide" type="button" :disabled="previewing" @click="goToPreview">
+        <button
+          class="button button-secondary button-wide"
+          type="button"
+          :disabled="previewing || templateLoading"
+          @click="goToPreview"
+        >
           <span v-if="previewing" class="button-spinner dark" />
-          {{ previewing ? '正在校验…' : '预览并校验' }}
+          {{ templateLoading ? '正在加载模板…' : previewing ? '正在校验…' : '预览并校验' }}
         </button>
         <button class="button button-muted button-wide" type="button" disabled><LockKeyhole :size="17" />确认注入</button>
       </div>
