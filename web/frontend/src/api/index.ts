@@ -1,6 +1,7 @@
 import { apiRequest } from './client'
 import {
   mockCreateKnowledge,
+  mockCreateBusinessDomain,
   mockCreateMember,
   mockGetCurrentUser,
   mockGetKnowledgeOptions,
@@ -13,6 +14,7 @@ import {
 } from './mock'
 import type {
   CreateKnowledgeResponse,
+  BusinessDomain,
   CurrentUserResponse,
   KnowledgeDraft,
   KnowledgeFile,
@@ -37,6 +39,15 @@ export const getCurrentUser = (): Promise<CurrentUserResponse> =>
 
 export const getKnowledgeOptions = (): Promise<KnowledgeOptions> =>
   isMockApi ? mockGetKnowledgeOptions() : apiRequest('/knowledge/options')
+
+export const createBusinessDomain = (payload: {
+  id: string
+  name: string
+  description: string
+}): Promise<{ business_domain: BusinessDomain }> =>
+  isMockApi
+    ? mockCreateBusinessDomain(payload)
+    : apiRequest('/business-domains', { method: 'POST', body: JSON.stringify(payload) })
 
 export const getKnowledgeTemplate = (type: KnowledgeType): Promise<KnowledgeTemplate> =>
   isMockApi

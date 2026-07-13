@@ -1,5 +1,6 @@
 import type {
   CreateKnowledgeResponse,
+  BusinessDomain,
   CurrentUserResponse,
   KnowledgeDraft,
   KnowledgeFile,
@@ -95,7 +96,11 @@ const options: KnowledgeOptions = {
     layer2: ['models', 'decisions', 'processes'],
     layer3: ['decisions', 'guidelines', 'processes'],
   },
-  business_domains: ['order', 'customer', 'billing'],
+  business_domains: [
+    { id: 'order', name: '订单', description: '订单履约与交易过程' },
+    { id: 'customer', name: '客户', description: '客户关系与客户服务' },
+    { id: 'billing', name: '结算', description: '计费、对账与结算' },
+  ],
   preview_ttl_seconds: 600,
 }
 
@@ -297,6 +302,7 @@ export async function mockGetCurrentUser(): Promise<CurrentUserResponse> {
       can_browse_knowledge: true,
       can_create_knowledge: member.role === 'contributor' || member.role === 'maintainer',
       can_manage_members: member.role === 'maintainer',
+      can_manage_business_domains: member.role === 'maintainer',
     },
     environment: 'development',
   }
@@ -305,6 +311,24 @@ export async function mockGetCurrentUser(): Promise<CurrentUserResponse> {
 export async function mockGetKnowledgeOptions(): Promise<KnowledgeOptions> {
   await wait(80)
   return structuredClone(options)
+}
+
+export async function mockCreateBusinessDomain(payload: {
+  id: string
+  name: string
+  description: string
+}): Promise<{ business_domain: BusinessDomain }> {
+  await wait()
+  if (options.business_domains.some((domain) => domain.id === payload.id)) {
+    throw new ApiError('业务领域标识已存在', {
+      status: 409,
+      code: 'business_domain_exists',
+      fieldErrors: [{ field: 'id', message: '请使用其他领域标识' }],
+    })
+  }
+  const businessDomain = { ...payload }
+  options.business_domains.push(businessDomain)
+  return { business_domain: structuredClone(businessDomain) }
 }
 
 export async function mockGetKnowledgeTemplate(type: KnowledgeType): Promise<KnowledgeTemplate> {

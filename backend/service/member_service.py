@@ -94,18 +94,80 @@ class MemberService:
                 for value in values
             ):
                 raise self._configuration_error(f"categories.{layer} 含有重复或不安全值")
-        domains = options.get("business_domains", [])
-        if not isinstance(domains, list) or len(domains) != len(set(domains)) or any(
-            not isinstance(value, str)
-            or not SAFE_SEGMENT_PATTERN.fullmatch(value)
-            or value == "archive"
-            for value in domains
-        ):
-            raise self._configuration_error("business_domains 含有重复或不安全值")
+        self.normalize_business_domains(options.get("business_domains", []))
         return raw
 
+    def normalize_business_domains(self, domains: Any) -> List[Dict[str, str]]:
+        if not isinstance(domains, list):
+            raise self._configuration_error("business_domains 必须是数组")
+        normalized: List[Dict[str, str]] = []
+        seen = set()
+        for index, value in enumerate(domains):
+            if isinstance(value, str):
+                domain = {"id": value, "name": value, "description": ""}
+            elif isinstance(value, dict):
+                if set(value) - {"id", "name", "description"}:
+                    raise self._configuration_error(
+                        f"business_domains[{index}] 包含未知字段"
+                    )
+                domain = {
+                    "id": value.get("id"),
+                    "name": value.get("name"),
+                    "description": value.get("description", ""),
+                }
+            else:
+                raise self._configuration_error(
+                    f"business_domains[{index}] 必须是字符串或对象"
+                )
+
+            domain_id = domain["id"]
+            name = domain["name"]
+            description = domain["description"]
+            if (
+                not isinstance(domain_id, str)
+                or not SAFE_SEGMENT_PATTERN.fullmatch(domain_id)
+                or domain_id == "archive"
+                or domain_id in seen
+            ):
+                raise self._configuration_error(
+                    f"business_domains[{index}].id 重复或不安全"
+                )
+            if (
+                not isinstance(name, str)
+                or not name.strip()
+                or len(name) > 80
+                or any(ord(character) < 32 or ord(character) == 127 for character in name)
+            ):
+                raise self._configuration_error(
+                    f"business_domains[{index}].name 格式无效"
+                )
+            if (
+                not isinstance(description, str)
+                or len(description) > 240
+                or any(
+                    ord(character) < 32 or ord(character) == 127
+                    for character in description
+                )
+            ):
+                raise self._configuration_error(
+                    f"business_domains[{index}].description 格式无效"
+                )
+            seen.add(domain_id)
+            normalized.append(
+                {
+                    "id": domain_id,
+                    "name": name.strip(),
+                    "description": description.strip(),
+                }
+            )
+        return normalized
+
     def knowledge_options(self) -> Dict[str, Any]:
-        return deepcopy(self.load_config()["knowledge_options"])
+        options = deepcopy(self.load_config()["knowledge_options"])
+        options["business_domains"] = self.normalize_business_domains(
+            options.get("business_domains", [])
+        )
+        return options
 
     def list_members(self) -> List[Dict[str, str]]:
         members = deepcopy(self.load_config()["members"])
@@ -145,14 +207,15 @@ class MemberService:
         )
         governance.atomic_write(self.path, rendered)
 
-    def _write_config_and_audit(
+    def write_config_and_audit(
         self,
         config: Dict[str, Any],
         *,
         actor_id: str,
         action: str,
-        member_id: str,
+        target_id: str,
         detail: str,
+        session: str = "web:members",
     ) -> None:
         log_path = self.repo / "log.md"
         previous_config = self.path.read_text(encoding="utf-8")
@@ -163,9 +226,9 @@ class MemberService:
                 self.repo,
                 actor_id,
                 action,
-                member_id,
+                target_id,
                 detail,
-                "web:members",
+                session,
             )
         except Exception:
             governance.atomic_write(self.path, previous_config)
@@ -191,11 +254,11 @@ class MemberService:
             }
             config["members"].append(member)
             self._ensure_active_maintainer(config["members"])
-            self._write_config_and_audit(
+            self.write_config_and_audit(
                 config,
                 actor_id=current_actor["id"],
                 action="member-create",
-                member_id=member["id"],
+                target_id=member["id"],
                 detail=json.dumps({"after": member}, ensure_ascii=False, sort_keys=True),
             )
             return deepcopy(member)
@@ -220,11 +283,11 @@ class MemberService:
             target.update(updates)
             self._ensure_active_maintainer(config["members"])
             if target != before:
-                self._write_config_and_audit(
+                self.write_config_and_audit(
                     config,
                     actor_id=current_actor["id"],
                     action="member-update",
-                    member_id=member_id,
+                    target_id=member_id,
                     detail=json.dumps(
                         {"before": before, "after": target},
                         ensure_ascii=False,

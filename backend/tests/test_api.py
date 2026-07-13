@@ -393,7 +393,7 @@ def test_team_layer_domain_whitelist_and_actor_bound_token(repo: Path):
     assert denied.json()["detail"]["code"] == "preview_actor_mismatch"
 
 
-def test_layer2_option_is_hidden_when_no_business_domain_is_configured(repo: Path):
+def test_layer2_option_remains_visible_when_no_business_domain_is_configured(repo: Path):
     config = config_data()
     config["knowledge_options"]["business_domains"] = []
     (repo / ".knowledge-config.yaml").write_text(
@@ -402,7 +402,70 @@ def test_layer2_option_is_hidden_when_no_business_domain_is_configured(repo: Pat
     )
     response = client_for(repo, "lisi").get("/api/knowledge/options")
     assert response.status_code == 200
-    assert "layer2" not in {item["value"] for item in response.json()["layers"]}
+    assert "layer2" in {item["value"] for item in response.json()["layers"]}
+    assert response.json()["business_domains"] == []
+
+
+def test_maintainer_can_create_business_domain_and_options_refresh(repo: Path):
+    config = config_data()
+    config["knowledge_options"]["business_domains"] = []
+    (repo / ".knowledge-config.yaml").write_text(
+        yaml.safe_dump(config, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    maintainer = client_for(repo, "zhangsan")
+
+    created = maintainer.post(
+        "/api/business-domains",
+        json={
+            "id": "order",
+            "name": "订单",
+            "description": "订单履约与交易过程",
+        },
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["business_domain"] == {
+        "id": "order",
+        "name": "订单",
+        "description": "订单履约与交易过程",
+    }
+
+    options = maintainer.get("/api/knowledge/options")
+    assert options.status_code == 200
+    assert options.json()["business_domains"] == [created.json()["business_domain"]]
+    persisted = yaml.safe_load((repo / ".knowledge-config.yaml").read_text(encoding="utf-8"))
+    assert persisted["knowledge_options"]["business_domains"] == [
+        created.json()["business_domain"]
+    ]
+    assert not (repo / "biz-wiki" / "order").exists()
+    audit_log = (repo / "log.md").read_text(encoding="utf-8")
+    assert "business-domain-create" in audit_log
+    assert "web:business-domains" in audit_log
+
+    duplicate = maintainer.post(
+        "/api/business-domains",
+        json={"id": "order", "name": "重复订单", "description": ""},
+    )
+    assert duplicate.status_code == 409
+    assert duplicate.json()["detail"]["code"] == "business_domain_exists"
+
+
+def test_only_maintainer_can_create_safe_business_domain(repo: Path):
+    contributor = client_for(repo, "lisi")
+    denied = contributor.post(
+        "/api/business-domains",
+        json={"id": "order", "name": "订单", "description": ""},
+    )
+    assert denied.status_code == 403
+    assert denied.json()["detail"]["code"] == "permission_denied"
+
+    maintainer = client_for(repo, "zhangsan")
+    for unsafe_id in ["archive", "Order", "../order"]:
+        invalid = maintainer.post(
+            "/api/business-domains",
+            json={"id": unsafe_id, "name": "订单", "description": ""},
+        )
+        assert invalid.status_code == 422
 
 
 @pytest.mark.parametrize(

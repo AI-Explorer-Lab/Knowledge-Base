@@ -96,6 +96,30 @@ class ManualKnowledgeRequest(KnowledgeInput):
     preview_token: str = Field(min_length=20, max_length=8192)
 
 
+class BusinessDomainCreate(StrictModel):
+    id: str = Field(
+        min_length=1,
+        max_length=48,
+        pattern=r"^[a-z0-9][a-z0-9-]*$",
+    )
+    name: str = Field(min_length=1, max_length=80)
+    description: str = Field(default="", max_length=240)
+
+    @field_validator("id")
+    @classmethod
+    def validate_id(cls, value: str) -> str:
+        if value == "archive":
+            raise ValueError("archive 是保留标识，不能作为业务领域")
+        return value
+
+    @field_validator("name", "description")
+    @classmethod
+    def validate_text(cls, value: str) -> str:
+        if any(ord(character) < 32 or ord(character) == 127 for character in value):
+            raise ValueError("业务领域信息不能包含控制字符或换行")
+        return value
+
+
 class MemberCreate(StrictModel):
     id: str = Field(min_length=2, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
     display_name: str = Field(min_length=1, max_length=80)

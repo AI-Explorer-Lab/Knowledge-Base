@@ -18,6 +18,7 @@ export interface CurrentUserResponse {
     can_browse_knowledge: boolean
     can_create_knowledge: boolean
     can_manage_members: boolean
+    can_manage_business_domains: boolean
   }
   environment?: string
 }
@@ -27,12 +28,18 @@ export interface SelectOption<T extends string = string> {
   label: string
 }
 
+export interface BusinessDomain {
+  id: string
+  name: string
+  description: string
+}
+
 export interface KnowledgeOptions {
   scopes: SelectOption<KnowledgeScope>[]
   knowledge_types: SelectOption<KnowledgeType>[]
   layers: SelectOption<Exclude<KnowledgeLayer, 'layer0p'>>[]
   categories: Record<KnowledgeLayer, string[]>
-  business_domains: string[]
+  business_domains: BusinessDomain[]
   preview_ttl_seconds: number
 }
 

@@ -591,6 +591,43 @@ select.invalid,
   transform: translateY(-50%);
 }
 
+.domain-control-stack {
+  min-width: 0;
+}
+
+.domain-control-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.domain-add-button {
+  min-width: 126px;
+  min-height: 41px;
+  border: 1px solid #b8ccfa;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #fff, #f4f7ff);
+  padding: 0 14px;
+  color: #1557e8;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.domain-add-button:hover {
+  border-color: #6f9afa;
+  box-shadow: 0 5px 14px rgba(21, 87, 232, 0.1);
+  transform: translateY(-1px);
+}
+
+.domain-empty-help {
+  margin: 7px 0 0;
+  color: #8a5b12;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
 .read-only-input input {
   background: #f8f9fb;
   color: #667085;
@@ -1887,6 +1924,126 @@ select.invalid,
   box-shadow: 0 24px 60px rgba(8, 21, 42, 0.26);
 }
 
+.business-domain-dialog {
+  position: relative;
+  width: min(520px, 100%);
+  overflow: hidden;
+  border: 1px solid rgba(213, 222, 238, 0.9);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 28px 80px rgba(8, 21, 42, 0.3);
+}
+
+.business-domain-dialog > header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid #e6eaf0;
+  background: linear-gradient(135deg, #f8fbff, #f2f6ff);
+  padding: 25px 30px 22px;
+}
+
+.business-domain-dialog > header > span {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #cfe0ff;
+  border-radius: 13px;
+  background: #eaf2ff;
+  color: #1557e8;
+}
+
+.business-domain-dialog h2 {
+  margin: 0 0 4px;
+  color: #192438;
+  font-size: 21px;
+}
+
+.business-domain-dialog header p {
+  margin: 0;
+  color: #718096;
+  font-size: 13px;
+}
+
+.business-domain-dialog form {
+  display: grid;
+  padding: 23px 30px 28px;
+}
+
+.business-domain-dialog form > label {
+  margin: 0 0 8px;
+  color: #263246;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.business-domain-dialog form > label:not(:first-child) {
+  margin-top: 18px;
+}
+
+.business-domain-dialog label em {
+  color: #e5484d;
+  font-style: normal;
+}
+
+.business-domain-dialog label span {
+  margin-left: 5px;
+  color: #98a2b3;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.business-domain-dialog textarea {
+  min-height: 88px;
+  resize: vertical;
+  padding: 11px 13px;
+  font: inherit;
+  line-height: 1.55;
+}
+
+.dialog-request-error {
+  margin: 20px 30px 0;
+  border: 1px solid #f5c7c3;
+  border-radius: 7px;
+  background: #fff5f4;
+  padding: 10px 12px;
+  color: #b42318;
+  font-size: 13px;
+}
+
+.dialog-field-help {
+  margin: 7px 0 0;
+  color: #7b8798;
+  font-size: 12px;
+}
+
+.dialog-field-help strong {
+  color: #42608c;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 600;
+}
+
+.dialog-field-meta {
+  display: flex;
+  min-height: 20px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 5px;
+}
+
+.dialog-field-meta > span {
+  margin-left: auto;
+  color: #98a2b3;
+  font-size: 11px;
+}
+
+.business-domain-dialog .dialog-actions {
+  padding-top: 3px;
+}
+
 .confirm-dialog h2 {
   margin: 0 0 12px;
   font-size: 21px;
@@ -2802,6 +2959,19 @@ select.invalid,
   .knowledge-form-card {
     gap: 18px;
     padding: 18px 15px;
+  }
+
+  .domain-control-row {
+    grid-template-columns: 1fr;
+  }
+
+  .domain-add-button {
+    width: 100%;
+  }
+
+  .business-domain-dialog > header,
+  .business-domain-dialog form {
+    padding-inline: 21px;
   }
 
   .editor-error {

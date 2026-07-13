@@ -36,10 +36,12 @@ const props = defineProps<{
   ownerId: string
   options: KnowledgeOptions | null
   errors: KnowledgeErrors
+  canManageBusinessDomains: boolean
 }>()
 
 const emit = defineEmits<{
   'template-loading': [loading: boolean]
+  'add-business-domain': []
 }>()
 
 const editor = ref<HTMLTextAreaElement | null>(null)
@@ -109,6 +111,13 @@ watch(
         props.draft.layer = props.options?.layers[0]?.value
       }
       if (props.draft.layer !== 'layer2') delete props.draft.domain
+      if (
+        props.draft.layer === 'layer2'
+        && props.draft.domain
+        && !props.options?.business_domains.some((domain) => domain.id === props.draft.domain)
+      ) {
+        delete props.draft.domain
+      }
       if (props.draft.layer) {
         props.draft.category = categoryForType(type, props.draft.layer, props.options)
       } else {
@@ -381,12 +390,30 @@ async function prefixLines(prefix: string) {
       </div>
       <div v-if="draft.layer === 'layer2'" class="form-row">
         <label for="domain">业务领域 <em>*</em></label>
-        <div class="select-shell">
-          <select id="domain" v-model="draft.domain" :class="{ invalid: errors.domain }">
-            <option value="" disabled>请选择业务领域</option>
-            <option v-for="domain in options?.business_domains ?? []" :key="domain" :value="domain">{{ domain }}</option>
-          </select>
-          <ChevronDown :size="17" />
+        <div class="domain-control-stack">
+          <div class="domain-control-row">
+            <div class="select-shell">
+              <select id="domain" v-model="draft.domain" :class="{ invalid: errors.domain }">
+                <option value="" disabled>请选择业务领域</option>
+                <option
+                  v-for="domain in options?.business_domains ?? []"
+                  :key="domain.id"
+                  :value="domain.id"
+                >{{ domain.name }} · {{ domain.id }}</option>
+              </select>
+              <ChevronDown :size="17" />
+            </div>
+            <button
+              v-if="canManageBusinessDomains"
+              class="domain-add-button"
+              type="button"
+              @click="emit('add-business-domain')"
+            >+ 新增业务领域</button>
+          </div>
+          <p v-if="errors.domain" class="field-error">{{ errors.domain }}</p>
+          <p v-if="!options?.business_domains.length" class="domain-empty-help">
+            {{ canManageBusinessDomains ? '尚未配置业务领域，请先新增后再选择。' : '尚未配置业务领域，请联系 Maintainer 新增。' }}
+          </p>
         </div>
       </div>
       <div class="form-row">

@@ -109,7 +109,8 @@ class KnowledgeService:
             path = self.repo / "tech-wiki" / category / filename
         elif layer == "layer2":
             assert request.domain is not None
-            if request.domain not in options["business_domains"]:
+            domain_ids = {item["id"] for item in options["business_domains"]}
+            if request.domain not in domain_ids:
                 raise ApiError(
                     422,
                     "invalid_domain",
@@ -240,11 +241,7 @@ class KnowledgeService:
             ],
             "layers": [
                 {"value": "layer1", "label": "Layer 1 技术知识"},
-                *(
-                    [{"value": "layer2", "label": "Layer 2 业务知识"}]
-                    if configured["business_domains"]
-                    else []
-                ),
+                {"value": "layer2", "label": "Layer 2 业务知识"},
                 {"value": "layer3", "label": "Layer 3 项目知识"},
             ],
             "categories": configured["categories"],

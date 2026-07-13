@@ -26,7 +26,7 @@ const options: KnowledgeOptions = {
     layer2: ['models'],
     layer3: ['decisions'],
   },
-  business_domains: ['order'],
+  business_domains: [{ id: 'order', name: '订单', description: '订单履约' }],
   preview_ttl_seconds: 600,
 }
 
