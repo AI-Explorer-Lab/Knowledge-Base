@@ -26,7 +26,6 @@ import type { KnowledgeDraft, KnowledgeLayer, KnowledgeOptions, KnowledgeType } 
 import { ApiError } from '@/types'
 import type { KnowledgeErrors } from '@/utils/knowledge'
 import {
-  categoryForType,
   formatLayer,
   shouldConfirmTemplateReplacement,
 } from '@/utils/knowledge'
@@ -55,7 +54,6 @@ const loadedTemplateContent = ref<string | null>(null)
 const pendingTemplateType = ref<KnowledgeType | null>(null)
 const retryTemplateType = ref<KnowledgeType | null>(null)
 const templateCache = new Map<KnowledgeType, string>()
-let initialTemplateRequested = false
 let templateRequestId = 0
 
 onBeforeUnmount(() => {
@@ -72,12 +70,22 @@ const knowledgeTypes = computed(() => props.options?.knowledge_types ?? [
 ])
 
 const layers = computed(() => props.options?.layers ?? [])
+const technicalDirections = computed(() => props.options?.technical_directions ?? [])
 
 const selectedLayer = computed<KnowledgeLayer>(() =>
   props.draft.scope === 'personal' ? 'layer0p' : (props.draft.layer ?? 'layer1'),
 )
 
-const categories = computed(() => props.options?.categories[selectedLayer.value] ?? [])
+const storageLocation = computed(() => {
+  const base = formatLayer(selectedLayer.value)
+  if (selectedLayer.value === 'layer1' && props.draft.technical_direction) {
+    return `${base} / ${props.draft.technical_direction}`
+  }
+  if (selectedLayer.value === 'layer2' && props.draft.domain) {
+    return `${base} / ${props.draft.domain}`
+  }
+  return base
+})
 
 watch(templateLoading, (loading) => emit('template-loading', loading))
 
@@ -89,26 +97,27 @@ watch(
 )
 
 watch(
-  () => props.options,
-  (availableOptions) => {
-    if (!availableOptions || initialTemplateRequested) return
-    initialTemplateRequested = true
-    if (!props.draft.content.trim()) void loadTemplate(props.draft.type, 'initial')
-  },
-  { immediate: true },
-)
-
-watch(
-  () => [props.draft.scope, props.draft.type, props.draft.layer, props.options] as const,
-  ([scope, type]) => {
+  () => [props.draft.scope, props.draft.layer, props.options] as const,
+  ([scope]) => {
     if (scope === 'personal') {
       delete props.draft.layer
+      delete props.draft.technical_direction
       delete props.draft.domain
-      delete props.draft.category
     } else {
       const allowedLayers = props.options?.layers.map((item) => item.value) ?? []
       if (!props.draft.layer || !allowedLayers.includes(props.draft.layer)) {
         props.draft.layer = props.options?.layers[0]?.value
+      }
+      if (props.draft.layer === 'layer1') {
+        const allowedDirections = props.options?.technical_directions.map((item) => item.value) ?? []
+        if (
+          !props.draft.technical_direction
+          || !allowedDirections.includes(props.draft.technical_direction)
+        ) {
+          props.draft.technical_direction = props.options?.technical_directions[0]?.value
+        }
+      } else {
+        delete props.draft.technical_direction
       }
       if (props.draft.layer !== 'layer2') delete props.draft.domain
       if (
@@ -117,11 +126,6 @@ watch(
         && !props.options?.business_domains.some((domain) => domain.id === props.draft.domain)
       ) {
         delete props.draft.domain
-      }
-      if (props.draft.layer) {
-        props.draft.category = categoryForType(type, props.draft.layer, props.options)
-      } else {
-        delete props.draft.category
       }
     }
   },
@@ -192,9 +196,6 @@ async function loadTemplate(type: KnowledgeType, mode: 'initial' | 'switch') {
       if (props.draft.type !== type || props.draft.content !== contentBeforeRequest) return
     } else {
       props.draft.type = type
-      if (props.draft.scope === 'team') {
-        props.draft.category = categoryForType(type, selectedLayer.value, props.options)
-      }
     }
 
     props.draft.content = content
@@ -388,6 +389,30 @@ async function prefixLines(prefix: string) {
           <ChevronDown :size="17" />
         </div>
       </div>
+      <div v-if="draft.layer === 'layer1'" class="form-row">
+        <label for="technical-direction">技术知识方向 <em>*</em></label>
+        <div class="form-control-stack">
+          <div class="select-shell">
+            <select
+              id="technical-direction"
+              v-model="draft.technical_direction"
+              :class="{ invalid: errors.technical_direction }"
+            >
+              <option value="" disabled>请选择技术知识方向</option>
+              <option
+                v-for="item in technicalDirections"
+                :key="item.value"
+                :value="item.value"
+              >{{ item.label }} · {{ item.value }}</option>
+            </select>
+            <ChevronDown :size="17" />
+          </div>
+          <p class="field-help">
+            <Info :size="16" />正向模式记录可复用方案；反模式记录应避免的技术做法及替代建议。
+          </p>
+          <p v-if="errors.technical_direction" class="field-error">{{ errors.technical_direction }}</p>
+        </div>
+      </div>
       <div v-if="draft.layer === 'layer2'" class="form-row">
         <label for="domain">业务领域 <em>*</em></label>
         <div class="domain-control-stack">
@@ -416,21 +441,12 @@ async function prefixLines(prefix: string) {
           </p>
         </div>
       </div>
-      <div class="form-row">
-        <label for="category">受控分类</label>
-        <div class="select-shell">
-          <select id="category" v-model="draft.category">
-            <option v-for="category in categories" :key="category" :value="category">{{ category }}</option>
-          </select>
-          <ChevronDown :size="17" />
-        </div>
-      </div>
     </template>
 
     <div class="form-row">
       <label for="storage">存储位置</label>
       <div class="input-with-icon read-only-input">
-        <input id="storage" :value="formatLayer(selectedLayer)" readonly />
+        <input id="storage" :value="storageLocation" readonly />
         <LockKeyhole :size="17" />
       </div>
     </div>
@@ -455,7 +471,7 @@ async function prefixLines(prefix: string) {
           </template>
           <template v-else>
             <Info :size="16" />
-            <span>正文已按知识类型提供填写示例，请根据真实知识修改内容。</span>
+            <span>首次打开保持为空；切换知识类型时可载入对应填写模板。</span>
           </template>
         </div>
         <div

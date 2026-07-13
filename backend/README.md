@@ -47,7 +47,7 @@ Dynaconf 从 `backend/config/app.yaml` 的 `environment`、`db`、`agent` 三个
 - `GET /api/health`：数据库与知识仓库健康状态
 - `GET /api/me`：当前成员与可用能力
 - `GET /api/knowledge`：按 Layer 或关键词浏览当前有效知识；人工只读且不写引用证据
-- `GET /api/knowledge/options`：后端受控知识选项
+- `GET /api/knowledge/options`：知识类型、可用层级、Layer 1 技术知识方向和 Layer 2 业务领域；Layer 1 按方向派生目录，其他层级按知识类型派生目录
 - `POST /api/business-domains`：Maintainer 新增 Layer 2 业务领域并记录审计日志
 - `POST /api/knowledge/preview`：预校验并签发短时预览凭证
 - `POST /api/knowledge/manual`：再次校验后原子写入知识、目录与日志

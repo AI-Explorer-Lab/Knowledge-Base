@@ -10,6 +10,7 @@ from backend.constant.enums import (
     MemberRole,
     MemberStatus,
     TeamLayer,
+    TechnicalDirection,
 )
 
 
@@ -24,12 +25,7 @@ class KnowledgeInput(StrictModel):
     tags: List[str] = Field(default_factory=list, max_length=20)
     source_references: List[str] = Field(min_length=1, max_length=20)
     layer: Optional[TeamLayer] = None
-    category: Optional[str] = Field(
-        default=None,
-        min_length=1,
-        max_length=48,
-        pattern=r"^[a-z0-9][a-z0-9-]*$",
-    )
+    technical_direction: Optional[TechnicalDirection] = None
     domain: Optional[str] = Field(
         default=None,
         min_length=1,
@@ -76,15 +72,17 @@ class KnowledgeInput(StrictModel):
         if self.scope == "personal":
             if self.layer is not None:
                 raise ValueError("个人知识的层级由后端固定为 layer0p")
+            if self.technical_direction is not None:
+                raise ValueError("个人知识不能指定技术知识方向")
             if self.domain is not None:
                 raise ValueError("个人知识不能指定业务领域")
-            if self.category is not None:
-                raise ValueError("个人知识的分类由后端根据知识类型派生")
         else:
             if self.layer is None:
                 raise ValueError("团队知识必须选择层级")
-            if self.category is None:
-                raise ValueError("团队知识必须选择受控分类")
+            if self.layer == "layer1" and self.technical_direction is None:
+                raise ValueError("Layer 1 知识必须选择技术知识方向")
+            if self.layer != "layer1" and self.technical_direction is not None:
+                raise ValueError("只有 Layer 1 知识可以指定技术知识方向")
             if self.layer == "layer2" and self.domain is None:
                 raise ValueError("Layer 2 知识必须选择业务领域")
             if self.layer != "layer2" and self.domain is not None:

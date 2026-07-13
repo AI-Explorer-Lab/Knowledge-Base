@@ -18,7 +18,6 @@ MEMBER_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{1,63}$")
 SAFE_SEGMENT_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,47}$")
 MEMBER_ROLES = {"reader", "contributor", "maintainer"}
 MEMBER_STATUSES = {"active", "disabled"}
-LAYERS = {"layer0p", "layer1", "layer2", "layer3"}
 
 
 class MemberService:
@@ -79,21 +78,6 @@ class MemberService:
         options = raw.get("knowledge_options", {})
         if not isinstance(options, dict):
             raise self._configuration_error("knowledge_options 必须是对象")
-        categories = options.get("categories", {})
-        if not isinstance(categories, dict) or set(categories) != LAYERS:
-            raise self._configuration_error(
-                "knowledge_options.categories 必须完整配置 layer0p/layer1/layer2/layer3"
-            )
-        for layer, values in categories.items():
-            if not isinstance(values, list) or not values:
-                raise self._configuration_error(f"categories.{layer} 必须是非空数组")
-            if len(values) != len(set(values)) or any(
-                not isinstance(value, str)
-                or not SAFE_SEGMENT_PATTERN.fullmatch(value)
-                or value == "archive"
-                for value in values
-            ):
-                raise self._configuration_error(f"categories.{layer} 含有重复或不安全值")
         self.normalize_business_domains(options.get("business_domains", []))
         return raw
 

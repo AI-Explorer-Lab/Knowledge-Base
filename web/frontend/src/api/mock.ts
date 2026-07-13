@@ -51,7 +51,7 @@ const seededFiles: KnowledgeFile[] = [
     created_at: '2026-07-11T08:40:00Z',
     tags: ['governance', 'team'],
     source_references: ['团队架构评审'],
-    relative_path: 'tech-wiki/guidelines/TK-GDL-001.md',
+    relative_path: 'tech-wiki/patterns/TK-GDL-001.md',
     content: '所有人工知识在写入前都必须经过元数据、路径、权限和索引校验。',
   },
   {
@@ -90,12 +90,10 @@ const options: KnowledgeOptions = {
     { value: 'layer2', label: 'Layer 2 · 业务知识' },
     { value: 'layer3', label: 'Layer 3 · 项目知识' },
   ],
-  categories: {
-    layer0p: ['guidelines', 'decisions', 'models', 'pitfalls', 'processes'],
-    layer1: ['patterns', 'guidelines', 'pitfalls'],
-    layer2: ['models', 'decisions', 'processes'],
-    layer3: ['decisions', 'guidelines', 'processes'],
-  },
+  technical_directions: [
+    { value: 'patterns', label: '正向模式' },
+    { value: 'anti-patterns', label: '反模式' },
+  ],
   business_domains: [
     { id: 'order', name: '订单', description: '订单履约与交易过程' },
     { id: 'customer', name: '客户', description: '客户关系与客户服务' },
@@ -229,11 +227,22 @@ const typeCategories = {
   process: 'processes',
 } as const
 
+const technicalDirectionCodes = {
+  patterns: 'PAT',
+  'anti-patterns': 'AP',
+} as const
+
 function makePreview(draft: KnowledgeDraft): PreviewResponse {
   const personal = draft.scope === 'personal'
-  const id = `${personal ? 'PK-ZS' : 'TK'}-${typeCodes[draft.type]}-001`
   const layer = personal ? 'layer0p' : (draft.layer ?? 'layer1')
-  const category = draft.category || (personal ? typeCategories[draft.type] : 'patterns')
+  const prefix = personal ? 'PK-ZS' : layer === 'layer2' ? 'BK' : layer === 'layer3' ? 'PJ' : 'TK'
+  const code = layer === 'layer1'
+    ? technicalDirectionCodes[draft.technical_direction ?? 'patterns']
+    : typeCodes[draft.type]
+  const id = `${prefix}-${code}-001`
+  const category = layer === 'layer1'
+    ? (draft.technical_direction ?? 'patterns')
+    : typeCategories[draft.type]
   const base = personal
     ? 'personal-prefernece/zhangsan/knowledge'
     : layer === 'layer1'

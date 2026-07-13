@@ -3,6 +3,7 @@ export type MemberStatus = 'active' | 'disabled'
 export type KnowledgeScope = 'personal' | 'team'
 export type KnowledgeLayer = 'layer0p' | 'layer1' | 'layer2' | 'layer3'
 export type KnowledgeType = 'model' | 'decision' | 'guideline' | 'pitfall' | 'process'
+export type TechnicalDirection = 'patterns' | 'anti-patterns'
 export type KnowledgeMaturity = 'draft' | 'verified' | 'proven'
 
 export interface Member {
@@ -38,7 +39,7 @@ export interface KnowledgeOptions {
   scopes: SelectOption<KnowledgeScope>[]
   knowledge_types: SelectOption<KnowledgeType>[]
   layers: SelectOption<Exclude<KnowledgeLayer, 'layer0p'>>[]
-  categories: Record<KnowledgeLayer, string[]>
+  technical_directions: SelectOption<TechnicalDirection>[]
   business_domains: BusinessDomain[]
   preview_ttl_seconds: number
 }
@@ -55,7 +56,7 @@ export interface KnowledgeDraft {
   tags: string[]
   source_references: string[]
   layer?: Exclude<KnowledgeLayer, 'layer0p'>
-  category?: string
+  technical_direction?: TechnicalDirection
   domain?: string
   content: string
 }

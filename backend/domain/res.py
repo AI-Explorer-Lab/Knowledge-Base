@@ -33,7 +33,7 @@ class KnowledgeOptionsResponse(ResponseModel):
     scopes: List[OptionItem]
     knowledge_types: List[OptionItem]
     layers: List[OptionItem]
-    categories: Dict[str, List[str]]
+    technical_directions: List[OptionItem]
     business_domains: List[BusinessDomainResponse]
     preview_ttl_seconds: int
 
