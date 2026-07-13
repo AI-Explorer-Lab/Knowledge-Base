@@ -1,4 +1,40 @@
-# 团队知识库配置
-#
-# 微信公众号原文只明确该文件用于团队成员和冲突策略，
-# 没有给出字段结构，因此此处不自行定义配置项。
+version: 1
+
+# Stable member IDs are referenced by knowledge evidence and the audit log.
+# Do not delete historical members; set status to disabled instead.
+members:
+  - id: zhangsan
+    display_name: 张三
+    role: maintainer
+    status: active
+
+# These are the only directory segments accepted by the manual injection API.
+# Add real Layer 2 domains here before enabling business-knowledge injection.
+knowledge_options:
+  business_domains: []
+  categories:
+    layer0p:
+      - models
+      - decisions
+      - guidelines
+      - pitfalls
+      - processes
+    layer1:
+      - patterns
+      - models
+      - decisions
+      - guidelines
+      - pitfalls
+      - processes
+    layer2:
+      - models
+      - decisions
+      - guidelines
+      - pitfalls
+      - processes
+    layer3:
+      - models
+      - decisions
+      - guidelines
+      - pitfalls
+      - processes

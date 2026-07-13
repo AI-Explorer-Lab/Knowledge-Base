@@ -1,0 +1,39 @@
+default:
+  environment:
+    name: development
+    log_level: INFO
+    cors_origins:
+      - http://localhost:5173
+      - http://127.0.0.1:5173
+  db:
+    url: "sqlite+aiosqlite:///./.knowledge-backend.db"
+    echo: false
+  agent:
+    repo_root: .
+    dev_actor: zhangsan
+    preview_secret: ""
+    preview_ttl_seconds: 300
+    identity_hmac_secret: ""
+    identity_max_skew_seconds: 60
+
+development:
+  environment:
+    name: development
+  db:
+    create_tables: true
+
+test:
+  environment:
+    name: test
+    log_level: WARNING
+  db:
+    url: "sqlite+aiosqlite:///:memory:"
+    create_tables: true
+
+production:
+  environment:
+    name: production
+    log_level: INFO
+  db:
+    echo: false
+    create_tables: false

@@ -9,6 +9,8 @@ be machine validated.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import fcntl
 import json
 import os
 import re
@@ -16,7 +18,7 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
 
 
 KNOWLEDGE_TYPES = {"model", "decision", "guideline", "pitfall", "process"}
@@ -125,6 +127,20 @@ def atomic_write(path: Path, content: str) -> None:
         except FileNotFoundError:
             pass
         raise
+
+
+@contextlib.contextmanager
+def repository_write_lock(repo: Path) -> Iterator[None]:
+    """Use the same cross-process repository lock as the web backend."""
+
+    lock_path = repo.resolve() / ".knowledge-write.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+", encoding="utf-8") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def write_entry(path: Path, metadata: Dict[str, Any], body: str) -> None:
@@ -513,6 +529,138 @@ def append_log(
     atomic_write(path, current + line)
 
 
+def build_knowledge_metadata(
+    *,
+    knowledge_id: str,
+    title: str,
+    knowledge_type: str,
+    layer: str,
+    scope: str,
+    actor: str,
+    sources: Sequence[str],
+    tags: Optional[Sequence[str]] = None,
+    owner_id: Optional[str] = None,
+    created_at: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Build the canonical metadata used by every knowledge creation surface.
+
+    The web application deliberately calls this function rather than duplicating
+    the CLI defaults.  Keeping construction here prevents a future CLI change
+    from silently producing a different Markdown schema than the browser flow.
+    """
+
+    metadata: Dict[str, Any] = {
+        "id": knowledge_id,
+        "title": title,
+        "type": knowledge_type,
+        "layer": layer,
+        "scope": scope,
+        "maturity": "draft",
+        "created_at": created_at or utc_now(),
+        "tags": list(tags or []),
+        "source_references": list(sources),
+        "evidence": {
+            "contributors": [actor],
+            "references": [],
+            "validations": [],
+        },
+        "promotion": {
+            "candidate": False,
+            "target_layer": None,
+            "target_path": None,
+            "previous_layers": [],
+        },
+        "conflict_status": "none",
+    }
+    if owner_id:
+        metadata["owner_id"] = owner_id
+    return metadata
+
+
+def create_knowledge_entry(
+    *,
+    repo: Path,
+    path: Path,
+    knowledge_id: str,
+    title: str,
+    knowledge_type: str,
+    layer: str,
+    scope: str,
+    sources: Sequence[str],
+    content: str,
+    actor: str,
+    role: str,
+    tags: Optional[Sequence[str]] = None,
+    owner_id: Optional[str] = None,
+    session: str = "manual",
+    created_at: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Create and index a knowledge entry using the shared governance rules.
+
+    Callers are responsible for serialising repository writes.  The CLI is a
+    single process; the web service wraps this function in its repository lock.
+    """
+
+    repo = repo.resolve()
+    require_role(role, ("contributor", "maintainer"))
+    path = resolve_inside(repo, str(path))
+    if path.exists():
+        raise GovernanceError(f"目标文件已存在：{path}")
+    actual_layer, _, archived, _ = layer_context(repo, path)
+    if archived:
+        raise GovernanceError("不能直接在 archive/ 中创建知识")
+    if actual_layer != layer:
+        raise GovernanceError(f"路径属于 {actual_layer}，与 layer {layer} 不一致")
+    for existing in iter_candidate_files(repo):
+        if is_entry_file(existing) and read_entry(existing)[0].get("id") == knowledge_id:
+            raise GovernanceError(f"知识 ID 已存在：{knowledge_id}")
+
+    metadata = build_knowledge_metadata(
+        knowledge_id=knowledge_id,
+        title=title,
+        knowledge_type=knowledge_type,
+        layer=layer,
+        scope=scope,
+        actor=actor,
+        sources=sources,
+        tags=tags,
+        owner_id=owner_id,
+        created_at=created_at,
+    )
+    body = f"# {title}\n\n{content.strip()}\n"
+    errors = validate_metadata(metadata, body) + validate_path_metadata(repo, path, metadata)
+    if scope == "personal" and actor != owner_id:
+        errors.append("个人知识必须由 owner_id 对应的所有者创建")
+    if errors:
+        raise GovernanceError("无法创建非法条目：\n- " + "\n- ".join(errors))
+
+    _, target_root, _, _ = layer_context(repo, path)
+    touched_paths = {
+        path,
+        repo / "knowledge-catalog.md",
+        repo / "log.md",
+        target_root / "catalog.md",
+    }
+    touched_paths.update(root / "catalog.md" for root in knowledge_roots(repo))
+    snapshots = {
+        candidate: candidate.read_text(encoding="utf-8") if candidate.exists() else None
+        for candidate in touched_paths
+    }
+    try:
+        write_entry(path, metadata, body)
+        reindex(repo)
+        append_log(repo, actor, "create", knowledge_id, path.relative_to(repo).as_posix(), session)
+    except Exception:
+        for candidate, previous in snapshots.items():
+            if previous is None:
+                if candidate.exists() and candidate.is_file():
+                    candidate.unlink()
+            else:
+                atomic_write(candidate, previous)
+        raise
+    return metadata
+
+
 def read_governance_state(repo: Path) -> Dict[str, Any]:
     path = repo / STATE_FILE
     if not path.exists():
@@ -567,13 +715,14 @@ def replace_managed_section(text: str, start: str, end: str, content: str) -> st
 def catalog_rows(entries: Iterable[Tuple[Path, Dict[str, Any], str]], repo: Path) -> str:
     rows: List[str] = []
     for path, metadata, _ in sorted(entries, key=lambda item: str(item[0])):
-        tags = ", ".join(metadata.get("tags", [])) or "-"
-        scope = metadata_scope(metadata)
-        owner = metadata.get("owner_id", "-")
-        relative = path.relative_to(repo).as_posix()
+        tags = ", ".join(catalog_cell(item) for item in metadata.get("tags", [])) or "-"
+        scope = catalog_cell(metadata_scope(metadata))
+        owner = catalog_cell(metadata.get("owner_id", "-"))
+        relative = catalog_cell(path.relative_to(repo).as_posix())
         rows.append(
-            f"| `{metadata['id']}` | {metadata['title']} | `{metadata['type']}` | "
-            f"`{metadata['maturity']}` | `{scope}` | `{owner}` | {tags} | `{relative}` |"
+            f"| `{catalog_cell(metadata['id'])}` | {catalog_cell(metadata['title'])} | "
+            f"`{catalog_cell(metadata['type'])}` | `{catalog_cell(metadata['maturity'])}` | "
+            f"`{scope}` | `{owner}` | {tags} | `{relative}` |"
         )
     header = (
         "| ID | 标题 | 类型 | 成熟度 | 范围 | 所有者 | 标签 | 路径 |\n"
@@ -582,6 +731,21 @@ def catalog_rows(entries: Iterable[Tuple[Path, Dict[str, Any], str]], repo: Path
     if not rows:
         return "## 活跃知识\n\n_当前没有活跃知识条目。_"
     return f"## 活跃知识\n\n{header}\n" + "\n".join(rows)
+
+
+def catalog_cell(value: Any) -> str:
+    """Escape untrusted metadata before inserting it into a Markdown table."""
+
+    return (
+        str(value if value is not None else "-")
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace("\r", " ")
+        .replace("\n", " ")
+        .replace("|", "\\|")
+        .replace("`", "\\`")
+    )
 
 
 def expected_catalogs(repo: Path) -> Dict[Path, str]:
@@ -696,53 +860,23 @@ def archive_entry(
 
 def cmd_create(args: argparse.Namespace) -> None:
     repo = resolve_repo(args.repo)
-    require_role(args.role, ("contributor", "maintainer"))
     path = resolve_inside(repo, args.path)
-    if path.exists():
-        raise GovernanceError(f"目标文件已存在：{path}")
-    actual_layer, _, archived, _ = layer_context(repo, path)
-    if archived:
-        raise GovernanceError("不能直接在 archive/ 中创建知识")
-    if actual_layer != args.layer:
-        raise GovernanceError(f"路径属于 {actual_layer}，与 --layer {args.layer} 不一致")
-    for existing in iter_candidate_files(repo):
-        if is_entry_file(existing) and read_entry(existing)[0].get("id") == args.id:
-            raise GovernanceError(f"知识 ID 已存在：{args.id}")
-
-    metadata: Dict[str, Any] = {
-        "id": args.id,
-        "title": args.title,
-        "type": args.type,
-        "layer": args.layer,
-        "scope": args.scope,
-        "maturity": "draft",
-        "created_at": utc_now(),
-        "tags": args.tag or [],
-        "source_references": args.source,
-        "evidence": {
-            "contributors": [args.actor],
-            "references": [],
-            "validations": [],
-        },
-        "promotion": {
-            "candidate": False,
-            "target_layer": None,
-            "target_path": None,
-            "previous_layers": [],
-        },
-        "conflict_status": "none",
-    }
-    if args.owner_id:
-        metadata["owner_id"] = args.owner_id
-    body = f"# {args.title}\n\n{args.content.strip()}\n"
-    errors = validate_metadata(metadata, body) + validate_path_metadata(repo, path, metadata)
-    if args.scope == "personal" and args.actor != args.owner_id:
-        errors.append("个人知识必须由 owner_id 对应的所有者创建")
-    if errors:
-        raise GovernanceError("无法创建非法条目：\n- " + "\n- ".join(errors))
-    write_entry(path, metadata, body)
-    reindex(repo)
-    append_log(repo, args.actor, "create", args.id, path.relative_to(repo).as_posix(), args.session)
+    create_knowledge_entry(
+        repo=repo,
+        path=path,
+        knowledge_id=args.id,
+        title=args.title,
+        knowledge_type=args.type,
+        layer=args.layer,
+        scope=args.scope,
+        sources=args.source,
+        content=args.content,
+        actor=args.actor,
+        role=args.role,
+        tags=args.tag,
+        owner_id=args.owner_id,
+        session=args.session,
+    )
     print(f"已创建：{path.relative_to(repo)}")
 
 
@@ -1410,7 +1544,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
-        args.func(args)
+        repo = resolve_repo(args.repo)
+        with repository_write_lock(repo):
+            args.func(args)
         return 0
     except (GovernanceError, ValueError) as exc:
         print(f"错误：{exc}", file=sys.stderr)
