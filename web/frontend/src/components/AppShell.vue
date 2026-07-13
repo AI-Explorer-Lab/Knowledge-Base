@@ -5,6 +5,7 @@ import {
   BookOpen,
   ChevronLeft,
   Database,
+  LibraryBig,
   Menu,
   PenLine,
   ShieldCheck,
@@ -25,7 +26,10 @@ const collapsed = ref(false)
 const mobileOpen = ref(false)
 
 const canCreate = computed(() => identity.value?.permissions.can_create_knowledge ?? false)
+const canBrowse = computed(() => identity.value?.permissions.can_browse_knowledge ?? false)
 const canManage = computed(() => identity.value?.permissions.can_manage_members ?? false)
+const injectionRouteNames = new Set(['knowledge-create', 'knowledge-preview', 'knowledge-completed'])
+const injectionActive = computed(() => injectionRouteNames.has(String(route.name)))
 const avatarText = computed(() => identity.value?.member.display_name.trim().slice(0, 1) || '用')
 const breadcrumbParts = computed(() => String(route.meta.breadcrumb ?? '').split(' / '))
 const showServiceFailure = computed(() =>
@@ -53,12 +57,23 @@ function closeMobileNavigation() {
           v-if="canCreate"
           to="/knowledge/create"
           class="nav-item"
-          :class="{ active: route.path.startsWith('/knowledge') }"
+          :class="{ active: injectionActive }"
           title="知识注入"
           @click="closeMobileNavigation"
         >
           <PenLine :size="23" />
           <span>知识注入</span>
+        </RouterLink>
+        <RouterLink
+          v-if="canBrowse"
+          to="/knowledge/browse"
+          class="nav-item"
+          :class="{ active: route.name === 'knowledge-browse' }"
+          title="知识浏览"
+          @click="closeMobileNavigation"
+        >
+          <LibraryBig :size="23" />
+          <span>知识浏览</span>
         </RouterLink>
         <RouterLink
           v-if="canManage"
@@ -71,7 +86,7 @@ function closeMobileNavigation() {
           <ShieldCheck :size="23" />
           <span>权限管理</span>
         </RouterLink>
-        <div v-if="!canCreate && !canManage" class="nav-item nav-item-muted">
+        <div v-if="!canCreate && !canBrowse && !canManage" class="nav-item nav-item-muted">
           <Database :size="22" />
           <span>只读访问</span>
         </div>

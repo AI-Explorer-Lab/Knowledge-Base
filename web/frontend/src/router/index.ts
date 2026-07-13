@@ -45,6 +45,15 @@ const router = createRouter({
       },
     },
     {
+      path: '/knowledge/browse',
+      name: 'knowledge-browse',
+      component: () => import('@/views/KnowledgeBrowseView.vue'),
+      meta: {
+        breadcrumb: '知识治理 / 知识浏览',
+        allowedRoles: ['reader', 'contributor', 'maintainer'],
+      },
+    },
+    {
       path: '/permissions',
       name: 'permissions',
       component: () => import('@/views/PermissionView.vue'),
@@ -66,7 +75,7 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach(async (to) => {
+router.beforeEach(async (to, from) => {
   await loadSession()
   const allowed = to.meta.allowedRoles
   if (routeRequiresForbidden({
@@ -84,6 +93,10 @@ router.beforeEach(async (to) => {
   if (to.name === 'knowledge-completed') {
     const { result } = (await import('@/composables/useKnowledgeFlow')).useKnowledgeFlow()
     if (!result.value) return { name: 'knowledge-create' }
+  }
+  if (to.name === 'knowledge-create' && from.name && from.name !== 'knowledge-preview') {
+    const { resetFlow } = (await import('@/composables/useKnowledgeFlow')).useKnowledgeFlow()
+    resetFlow()
   }
   return true
 })

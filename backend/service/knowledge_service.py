@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from tools import knowledge_governance as governance
+from backend.constant.enums import KnowledgeLayer
 from backend.constant.values import LAYER_PREFIXES, TYPE_CATEGORIES, TYPE_CODES
 from backend.domain.models import KnowledgeTarget
 from backend.domain.req import KnowledgeInput, ManualKnowledgeRequest
@@ -517,6 +518,81 @@ class KnowledgeService:
             return None
         return self._create_result(metadata, record["relative_path"], actor)
 
+    @staticmethod
+    def _content_without_title(metadata: Dict[str, Any], body: str) -> str:
+        content = body.lstrip()
+        heading = f"# {metadata['title']}"
+        if content.startswith(heading):
+            content = content[len(heading) :].lstrip("\r\n")
+        return content.rstrip()
+
+    def list_entries(
+        self,
+        actor: Dict[str, str],
+        *,
+        layer: Optional[KnowledgeLayer] = None,
+        query: str = "",
+    ) -> Dict[str, Any]:
+        """List active knowledge for the human browser without recording evidence."""
+
+        self.members.get_member(actor["id"])
+        counts: Dict[str, int] = {
+            "layer0p": 0,
+            "layer1": 0,
+            "layer2": 0,
+            "layer3": 0,
+        }
+        normalized_query = query.strip().casefold()
+        items: List[Dict[str, Any]] = []
+
+        for path, metadata, body in governance.active_entries(self.repo):
+            try:
+                governance.require_valid_entry(self.repo, path, metadata, body)
+            except governance.GovernanceError as exc:
+                raise ApiError(409, "invalid_knowledge_entry", str(exc)) from exc
+
+            entry_layer = str(metadata["layer"])
+            counts[entry_layer] += 1
+            if layer is not None and entry_layer != layer:
+                continue
+
+            content = self._content_without_title(metadata, body)
+            tags = metadata.get("tags", [])
+            searchable = " ".join(
+                [
+                    str(metadata["id"]),
+                    str(metadata["title"]),
+                    str(metadata["type"]),
+                    str(metadata.get("owner_id") or ""),
+                    " ".join(str(tag) for tag in tags),
+                    content,
+                ]
+            ).casefold()
+            if normalized_query and normalized_query not in searchable:
+                continue
+
+            excerpt = re.sub(r"\s+", " ", content).strip()
+            if len(excerpt) > 180:
+                excerpt = f"{excerpt[:180].rstrip()}…"
+            items.append(
+                {
+                    "id": metadata["id"],
+                    "title": metadata["title"],
+                    "type": metadata["type"],
+                    "scope": governance.metadata_scope(metadata),
+                    "owner_id": metadata.get("owner_id"),
+                    "layer": entry_layer,
+                    "maturity": metadata["maturity"],
+                    "created_at": metadata["created_at"],
+                    "tags": tags,
+                    "relative_path": path.relative_to(self.repo).as_posix(),
+                    "excerpt": excerpt,
+                }
+            )
+
+        items.sort(key=lambda item: (item["created_at"], item["id"]), reverse=True)
+        return {"items": items, "counts": counts, "total": len(items)}
+
     def get_by_id(self, knowledge_id: str, actor: Dict[str, str]) -> Dict[str, Any]:
         """Return a repository-visible entry for the human completion UI only.
 
@@ -541,10 +617,7 @@ class KnowledgeService:
             governance.require_valid_entry(self.repo, path, metadata, body)
         except governance.GovernanceError as exc:
             raise ApiError(409, "invalid_knowledge_entry", str(exc)) from exc
-        content = body.lstrip()
-        heading = f"# {metadata['title']}"
-        if content.startswith(heading):
-            content = content[len(heading) :].lstrip("\r\n")
+        content = self._content_without_title(metadata, body)
         return {
             "knowledge": {
                 "id": metadata["id"],
@@ -558,6 +631,6 @@ class KnowledgeService:
                 "tags": metadata.get("tags", []),
                 "source_references": metadata.get("source_references", []),
                 "relative_path": path.relative_to(self.repo).as_posix(),
-                "content": content.rstrip(),
+                "content": content,
             }
         }

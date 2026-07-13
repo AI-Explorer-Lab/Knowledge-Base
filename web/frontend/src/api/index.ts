@@ -5,6 +5,7 @@ import {
   mockGetCurrentUser,
   mockGetKnowledgeOptions,
   mockGetKnowledgeById,
+  mockListKnowledge,
   mockGetMembers,
   mockPreviewKnowledge,
   mockUpdateMember,
@@ -14,6 +15,8 @@ import type {
   CurrentUserResponse,
   KnowledgeDraft,
   KnowledgeFile,
+  KnowledgeLayer,
+  KnowledgeListResponse,
   KnowledgeOptions,
   Member,
   MembersResponse,
@@ -36,6 +39,18 @@ export const getKnowledgeById = (knowledgeId: string): Promise<{ knowledge: Know
   isMockApi
     ? mockGetKnowledgeById(knowledgeId)
     : apiRequest(`/knowledge/${encodeURIComponent(knowledgeId)}`)
+
+export const listKnowledge = (
+  layer?: KnowledgeLayer,
+  query = '',
+): Promise<KnowledgeListResponse> => {
+  if (isMockApi) return mockListKnowledge(layer, query)
+  const params = new URLSearchParams()
+  if (layer) params.set('layer', layer)
+  if (query.trim()) params.set('q', query.trim())
+  const suffix = params.size ? `?${params.toString()}` : ''
+  return apiRequest(`/knowledge${suffix}`)
+}
 
 export const previewKnowledge = (draft: KnowledgeDraft): Promise<PreviewResponse> =>
   isMockApi

@@ -10,6 +10,7 @@ import {
 const identity = (role: CurrentUserResponse['member']['role']): CurrentUserResponse => ({
   member: { id: role, display_name: role, role, status: 'active' },
   permissions: {
+    can_browse_knowledge: true,
     can_create_knowledge: role !== 'reader',
     can_manage_members: role === 'maintainer',
   },
@@ -60,7 +61,7 @@ describe('fail-closed routing', () => {
       identity: identity('reader'),
       failureKind: 'none',
     })).toBe(false)
-    expect(defaultRouteForIdentity(identity('reader'))).toBe('/forbidden')
+    expect(defaultRouteForIdentity(identity('reader'))).toBe('/knowledge/browse')
   })
 
   it('fails closed when identity is absent while leaving network/server errors to the service error screen', () => {
@@ -81,7 +82,7 @@ describe('fail-closed routing', () => {
   it('uses refreshed permissions for the post-role-change destination', () => {
     expect(defaultRouteForIdentity(identity('maintainer'))).toBe('/knowledge/create')
     expect(defaultRouteForIdentity(identity('contributor'))).toBe('/knowledge/create')
-    expect(defaultRouteForIdentity(identity('reader'))).toBe('/forbidden')
+    expect(defaultRouteForIdentity(identity('reader'))).toBe('/knowledge/browse')
     expect(defaultRouteForIdentity(null)).toBe('/forbidden')
   })
 })

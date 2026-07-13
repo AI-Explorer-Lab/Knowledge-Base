@@ -14,26 +14,11 @@ const TYPE_CATEGORY: Record<KnowledgeType, string> = {
 export function initialKnowledgeDraft(): KnowledgeDraft {
   return {
     scope: 'personal',
-    title: '调试 API 前先检查端口',
+    title: '',
     type: 'guideline',
-    tags: ['debug', 'api', 'port'],
-    source_references: ['个人调试复盘'],
-    category: 'guidelines',
-    content: `## 背景
-在调试本地或远程 API 时，经常遇到连接失败或超时的问题。大多数情况下并非代码问题，而是端口未开放、被占用或访问地址配置错误。
-
-## 操作清单
-- 确认服务端已启动并监听在期望端口。
-- 检查端口是否被占用。
-- 确认防火墙或安全组放行端口。
-- 验证请求地址与协议是否正确。
-
-## 常用命令
-\`\`\`bash
-lsof -i :8080
-netstat -tuln | grep 8080
-curl -v http://localhost:8080/health
-\`\`\``,
+    tags: [],
+    source_references: [''],
+    content: '',
   }
 }
 

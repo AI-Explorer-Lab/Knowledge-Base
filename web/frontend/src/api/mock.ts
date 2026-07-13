@@ -3,6 +3,8 @@ import type {
   CurrentUserResponse,
   KnowledgeDraft,
   KnowledgeFile,
+  KnowledgeLayer,
+  KnowledgeListResponse,
   KnowledgeOptions,
   Member,
   MembersResponse,
@@ -20,7 +22,53 @@ const members: Member[] = [
 ]
 
 const previewTokens = new Map<string, KnowledgeDraft>()
-const createdFiles = new Map<string, KnowledgeFile>()
+const seededFiles: KnowledgeFile[] = [
+  {
+    id: 'PK-ZS-GDL-001',
+    title: '调试 API 前先检查端口',
+    type: 'guideline',
+    scope: 'personal',
+    owner_id: 'zhangsan',
+    layer: 'layer0p',
+    maturity: 'draft',
+    created_at: '2026-07-12T10:20:00Z',
+    tags: ['debug', 'api'],
+    source_references: ['个人调试复盘'],
+    relative_path: 'personal-prefernece/zhangsan/knowledge/guidelines/PK-ZS-GDL-001.md',
+    content: '启动服务前，先确认目标端口没有被占用，并检查服务监听地址。',
+  },
+  {
+    id: 'TK-GDL-001',
+    title: '知识治理协作约定',
+    type: 'guideline',
+    scope: 'team',
+    owner_id: null,
+    layer: 'layer1',
+    maturity: 'verified',
+    created_at: '2026-07-11T08:40:00Z',
+    tags: ['governance', 'team'],
+    source_references: ['团队架构评审'],
+    relative_path: 'tech-wiki/guidelines/TK-GDL-001.md',
+    content: '所有人工知识在写入前都必须经过元数据、路径、权限和索引校验。',
+  },
+  {
+    id: 'PJ-DEC-001',
+    title: '项目文档分层决策',
+    type: 'decision',
+    scope: 'team',
+    owner_id: null,
+    layer: 'layer3',
+    maturity: 'proven',
+    created_at: '2026-07-09T03:15:00Z',
+    tags: ['project', 'architecture'],
+    source_references: ['项目复盘'],
+    relative_path: 'docs/knowledge/decisions/PJ-DEC-001.md',
+    content: '项目知识按决策、指南和流程拆分，避免把阶段性信息混入稳定技术规范。',
+  },
+]
+const createdFiles = new Map<string, KnowledgeFile>(
+  seededFiles.map((knowledge) => [knowledge.id, knowledge]),
+)
 
 const options: KnowledgeOptions = {
   scopes: [
@@ -135,6 +183,7 @@ export async function mockGetCurrentUser(): Promise<CurrentUserResponse> {
   return {
     member,
     permissions: {
+      can_browse_knowledge: true,
       can_create_knowledge: member.role === 'contributor' || member.role === 'maintainer',
       can_manage_members: member.role === 'maintainer',
     },
@@ -214,6 +263,37 @@ export async function mockGetKnowledgeById(knowledgeId: string): Promise<{ knowl
   const knowledge = createdFiles.get(knowledgeId)
   if (!knowledge) throw new ApiError('知识文件不存在或当前成员无权查看', { status: 404, code: 'NOT_FOUND' })
   return { knowledge: structuredClone(knowledge) }
+}
+
+export async function mockListKnowledge(
+  layer?: KnowledgeLayer,
+  query = '',
+): Promise<KnowledgeListResponse> {
+  await wait(100)
+  const all = [...createdFiles.values()]
+  const normalizedQuery = query.trim().toLowerCase()
+  const counts: Record<KnowledgeLayer, number> = {
+    layer0p: 0,
+    layer1: 0,
+    layer2: 0,
+    layer3: 0,
+  }
+  for (const knowledge of all) counts[knowledge.layer] += 1
+  const items = all
+    .filter((knowledge) => !layer || knowledge.layer === layer)
+    .filter((knowledge) => !normalizedQuery || [
+      knowledge.id,
+      knowledge.title,
+      knowledge.type,
+      knowledge.content,
+      ...knowledge.tags,
+    ].join(' ').toLowerCase().includes(normalizedQuery))
+    .sort((left, right) => right.created_at.localeCompare(left.created_at))
+    .map(({ source_references: _sources, content, ...knowledge }) => ({
+      ...knowledge,
+      excerpt: content.length > 180 ? `${content.slice(0, 180)}…` : content,
+    }))
+  return { items: structuredClone(items), counts, total: items.length }
 }
 
 export async function mockGetMembers(): Promise<MembersResponse> {

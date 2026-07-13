@@ -17,6 +17,7 @@ def get_me(request: Request, member: Dict[str, str] = Depends(current_member)) -
     return {
         "member": member,
         "permissions": {
+            "can_browse_knowledge": True,
             "can_create_knowledge": role in {"contributor", "maintainer"},
             "can_manage_members": role == "maintainer",
         },

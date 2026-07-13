@@ -28,6 +28,7 @@ export function defaultRouteForIdentity(identity: CurrentUserResponse | null): s
   if (!identity || identity.member.status !== 'active') return '/forbidden'
   if (identity.permissions.can_create_knowledge) return '/knowledge/create'
   if (identity.permissions.can_manage_members) return '/permissions'
+  if (identity.permissions.can_browse_knowledge) return '/knowledge/browse'
   return '/forbidden'
 }
 
