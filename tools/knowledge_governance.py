@@ -20,7 +20,9 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 
 KNOWLEDGE_TYPES = {"model", "decision", "guideline", "pitfall", "process"}
-LAYERS = {"layer1", "layer2", "layer3"}
+LAYERS = {"layer0p", "layer1", "layer2", "layer3"}
+TEAM_LAYERS = {"layer1", "layer2", "layer3"}
+SCOPES = {"personal", "team"}
 MATURITIES = {"draft", "verified", "proven"}
 CONFLICT_STATES = {"none", "suspected", "confirmed", "resolved"}
 VALIDATION_RESULTS = {"passed", "failed"}
@@ -29,6 +31,9 @@ ROLES = {"reader", "contributor", "maintainer", "system"}
 PROVEN_DECAY_DAYS = 365
 VERIFIED_DECAY_DAYS = 180
 DRAFT_ARCHIVE_DAYS = 180
+LINT_REMINDER_DAYS = 30
+LINT_WORKFLOW_INTERVAL = 10
+STATE_FILE = ".knowledge-governance-state.json"
 
 METADATA_PATTERN = re.compile(
     r"\A```knowledge-metadata[ \t]*\n(?P<json>.*?)\n```[ \t]*(?:\n|\Z)",
@@ -123,6 +128,10 @@ def atomic_write(path: Path, content: str) -> None:
 
 
 def write_entry(path: Path, metadata: Dict[str, Any], body: str) -> None:
+    # Existing Layer 1/2/3 entries predate the scope field. Persist the inferred
+    # team scope the next time one of those entries is changed.
+    if "scope" not in metadata and metadata.get("layer") in TEAM_LAYERS:
+        metadata["scope"] = "team"
     encoded = json.dumps(metadata, ensure_ascii=False, indent=2, sort_keys=True)
     normalized_body = body.lstrip("\n")
     atomic_write(path, f"```knowledge-metadata\n{encoded}\n```\n\n{normalized_body}")
@@ -150,6 +159,32 @@ def validate_record_fields(
     return record
 
 
+def metadata_scope(metadata: Dict[str, Any]) -> Optional[str]:
+    """Return scope while keeping legacy Layer 1/2/3 metadata compatible."""
+    scope = metadata.get("scope")
+    if scope is None and metadata.get("layer") in TEAM_LAYERS:
+        return "team"
+    return scope
+
+
+def effective_references(metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
+    evidence = metadata.get("evidence", {})
+    references = evidence.get("references", []) if isinstance(evidence, dict) else []
+    records = [item for item in references if isinstance(item, dict)]
+    if metadata_scope(metadata) != "personal":
+        return records
+    owner_id = metadata.get("owner_id")
+    return [item for item in records if item.get("contributor") == owner_id]
+
+
+def reference_keys(metadata: Dict[str, Any]) -> set:
+    return {
+        (item.get("project_id"), item.get("workflow_id"))
+        for item in effective_references(metadata)
+        if item.get("project_id") and item.get("workflow_id")
+    }
+
+
 def validate_metadata(metadata: Dict[str, Any], body: str) -> List[str]:
     errors: List[str] = []
     for field in ("id", "title", "type", "layer", "maturity", "created_at"):
@@ -164,6 +199,21 @@ def validate_metadata(metadata: Dict[str, Any], body: str) -> List[str]:
         errors.append(f"maturity 必须是以下值之一：{', '.join(sorted(MATURITIES))}")
     if metadata.get("conflict_status") not in CONFLICT_STATES:
         errors.append(f"conflict_status 必须是以下值之一：{', '.join(sorted(CONFLICT_STATES))}")
+
+    scope = metadata_scope(metadata)
+    if scope not in SCOPES:
+        errors.append(f"scope 必须是以下值之一：{', '.join(sorted(SCOPES))}")
+    owner_id = metadata.get("owner_id")
+    if scope == "personal":
+        if metadata.get("layer") != "layer0p":
+            errors.append("个人知识的 layer 必须是 layer0p")
+        if not isinstance(owner_id, str) or not owner_id.strip():
+            errors.append("个人知识必须填写非空 owner_id")
+    elif scope == "team":
+        if metadata.get("layer") == "layer0p":
+            errors.append("Layer 0-P 知识的 scope 必须是 personal")
+        if "owner_id" in metadata:
+            errors.append("团队知识不应保存 owner_id")
 
     try:
         parse_time(metadata.get("created_at", ""))
@@ -200,6 +250,10 @@ def validate_metadata(metadata: Dict[str, Any], body: str) -> List[str]:
                 parse_time(validated.get("referenced_at", ""))
             except (TypeError, ValueError) as exc:
                 errors.append(f"evidence.references[{index}].referenced_at 非法：{exc}")
+            if scope == "personal" and validated.get("contributor") != owner_id:
+                errors.append(
+                    f"evidence.references[{index}].contributor 必须等于个人知识 owner_id"
+                )
 
     validations = ensure_list(evidence.get("validations"), "evidence.validations", errors)
     for index, record in enumerate(validations):
@@ -232,8 +286,22 @@ def validate_metadata(metadata: Dict[str, Any], body: str) -> List[str]:
     if target_path is not None and (not isinstance(target_path, str) or not target_path.strip()):
         errors.append("promotion.target_path 必须为空或非空字符串")
     history = ensure_list(promotion.get("previous_layers"), "promotion.previous_layers", errors)
-    if any(not isinstance(item, dict) for item in history):
-        errors.append("promotion.previous_layers 中的每一项必须是对象")
+    for index, item in enumerate(history):
+        validated = validate_record_fields(
+            item,
+            ("from", "to", "from_path", "to_path", "actor", "changed_at"),
+            f"promotion.previous_layers[{index}]",
+            errors,
+        )
+        if validated:
+            try:
+                parse_time(validated.get("changed_at", ""))
+            except (TypeError, ValueError) as exc:
+                errors.append(f"promotion.previous_layers[{index}].changed_at 非法：{exc}")
+            if "reason" in validated and (
+                not isinstance(validated["reason"], str) or not validated["reason"].strip()
+            ):
+                errors.append(f"promotion.previous_layers[{index}].reason 必须是非空字符串")
     if promotion.get("candidate") and (not target_layer or not target_path):
         errors.append("提升候选必须填写 promotion.target_layer 和 promotion.target_path")
 
@@ -248,7 +316,11 @@ def layer_context(repo: Path, path: Path) -> Tuple[str, Path, bool, Path]:
     if not parts:
         raise GovernanceError(f"无法识别知识层级：{path}")
 
-    if parts[0] == "tech-wiki":
+    if len(parts) >= 3 and parts[0] == "personal-prefernece" and parts[2] == "knowledge":
+        root = repo / "personal-prefernece" / parts[1] / "knowledge"
+        layer = "layer0p"
+        remainder = Path(*parts[3:])
+    elif parts[0] == "tech-wiki":
         root = repo / "tech-wiki"
         layer = "layer1"
         remainder = Path(*parts[1:])
@@ -261,7 +333,9 @@ def layer_context(repo: Path, path: Path) -> Tuple[str, Path, bool, Path]:
         layer = "layer3"
         remainder = Path(*parts[2:])
     else:
-        raise GovernanceError(f"知识条目必须位于 Layer 1、Layer 2 或 Layer 3：{relative}")
+        raise GovernanceError(
+            f"知识条目必须位于个人 knowledge/、Layer 1、Layer 2 或 Layer 3：{relative}"
+        )
 
     remainder_parts = remainder.parts
     archived = bool(remainder_parts and remainder_parts[0] == "archive")
@@ -269,6 +343,43 @@ def layer_context(repo: Path, path: Path) -> Tuple[str, Path, bool, Path]:
     if not active_relative.parts:
         raise GovernanceError(f"知识条目路径不能直接指向层级根目录：{relative}")
     return layer, root, archived, active_relative
+
+
+def personal_owner_for_path(repo: Path, path: Path) -> Optional[str]:
+    relative = path.resolve().relative_to(repo.resolve())
+    parts = relative.parts
+    if len(parts) >= 3 and parts[0] == "personal-prefernece" and parts[2] == "knowledge":
+        return parts[1]
+    return None
+
+
+def validate_path_metadata(repo: Path, path: Path, metadata: Dict[str, Any]) -> List[str]:
+    errors: List[str] = []
+    actual_layer, _, _, _ = layer_context(repo, path)
+    if metadata.get("layer") != actual_layer:
+        errors.append(
+            f"路径属于 {actual_layer}，与元数据 layer={metadata.get('layer')} 不一致"
+        )
+    path_owner = personal_owner_for_path(repo, path)
+    if actual_layer == "layer0p":
+        if metadata_scope(metadata) != "personal":
+            errors.append("个人 knowledge/ 下的知识必须使用 scope=personal")
+        if metadata.get("owner_id") != path_owner:
+            errors.append(f"owner_id 必须与个人目录成员 {path_owner} 一致")
+    elif metadata_scope(metadata) != "team":
+        errors.append("Layer 1、Layer 2、Layer 3 知识必须使用 scope=team")
+    return errors
+
+
+def require_valid_entry(
+    repo: Path,
+    path: Path,
+    metadata: Dict[str, Any],
+    body: str,
+) -> None:
+    errors = validate_metadata(metadata, body) + validate_path_metadata(repo, path, metadata)
+    if errors:
+        raise GovernanceError("知识条目无效：\n- " + "\n- ".join(errors))
 
 
 def is_special_file(path: Path) -> bool:
@@ -279,7 +390,16 @@ def knowledge_roots(repo: Path) -> List[Path]:
     roots = [repo / "tech-wiki", repo / "docs" / "knowledge"]
     biz_root = repo / "biz-wiki"
     if biz_root.exists():
-        roots.extend(path for path in biz_root.iterdir() if path.is_dir())
+        roots.extend(sorted(path for path in biz_root.iterdir() if path.is_dir()))
+    personal_root = repo / "personal-prefernece"
+    if personal_root.exists():
+        roots.extend(
+            sorted(
+                path / "knowledge"
+                for path in personal_root.iterdir()
+                if path.is_dir() and (path / "knowledge").is_dir()
+            )
+        )
     return roots
 
 
@@ -323,27 +443,21 @@ def passed_validations(metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
     return [item for item in validations if isinstance(item, dict) and item.get("result") == "passed"]
 
 
-def has_successful_validation(metadata: Dict[str, Any]) -> bool:
-    return bool(passed_validations(metadata))
+def usage_validations(metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
+    keys = reference_keys(metadata)
+    return [
+        item
+        for item in passed_validations(metadata)
+        if (item.get("project_id"), item.get("workflow_id")) in keys
+    ]
 
 
-def has_effective_validation(
-    metadata: Dict[str, Any],
-    as_of: datetime,
-    max_age_days: int = VERIFIED_DECAY_DAYS,
-) -> bool:
-    for item in passed_validations(metadata):
-        try:
-            validated_at = parse_time(item.get("validated_at", ""))
-        except (TypeError, ValueError):
-            continue
-        if (as_of - validated_at).days < max_age_days:
-            return True
-    return False
+def eligible_for_verified(metadata: Dict[str, Any]) -> bool:
+    return bool(usage_validations(metadata))
 
 
 def eligible_for_proven(metadata: Dict[str, Any]) -> bool:
-    validations = passed_validations(metadata)
+    validations = usage_validations(metadata)
     projects = {item.get("project_id") for item in validations if item.get("project_id")}
     contributors = {item.get("contributor") for item in validations if item.get("contributor")}
     return len(projects) >= 2 and len(contributors) >= 2
@@ -355,14 +469,11 @@ def conflict_blocks_upgrade(metadata: Dict[str, Any]) -> bool:
 
 def last_reference_time(metadata: Dict[str, Any]) -> datetime:
     candidates: List[datetime] = []
-    evidence = metadata.get("evidence", {})
-    if isinstance(evidence, dict):
-        for item in evidence.get("references", []):
-            if isinstance(item, dict):
-                try:
-                    candidates.append(parse_time(item.get("referenced_at", "")))
-                except (TypeError, ValueError):
-                    continue
+    for item in effective_references(metadata):
+        try:
+            candidates.append(parse_time(item.get("referenced_at", "")))
+        except (TypeError, ValueError):
+            continue
     if candidates:
         return max(candidates)
     return parse_time(metadata["created_at"])
@@ -375,6 +486,16 @@ def touch_contributor(metadata: Dict[str, Any], actor: str) -> None:
         contributors.append(actor)
 
 
+def require_consumption_access(metadata: Dict[str, Any], actor: str) -> None:
+    if metadata_scope(metadata) != "personal":
+        return
+    owner_id = metadata.get("owner_id")
+    if actor != owner_id:
+        raise GovernanceError(
+            f"个人知识仅允许所有者 {owner_id} 消费；当前操作者为 {actor}"
+        )
+
+
 def append_log(
     repo: Path,
     actor: str,
@@ -385,10 +506,52 @@ def append_log(
 ) -> None:
     path = repo / "log.md"
     current = path.read_text(encoding="utf-8") if path.exists() else "# 知识贡献日志\n"
+    current = current.replace("\n当前没有知识贡献记录。\n", "\n")
     if not current.endswith("\n"):
         current += "\n"
     line = f"- {utc_now()} | `{actor}` | `{action}` | `{knowledge_id}` | {detail} | `{session}`\n"
     atomic_write(path, current + line)
+
+
+def read_governance_state(repo: Path) -> Dict[str, Any]:
+    path = repo / STATE_FILE
+    if not path.exists():
+        return {"last_lint_at": None, "workflows_since_lint": 0}
+    try:
+        state = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise GovernanceError(f"治理状态文件无效：{path}") from exc
+    if not isinstance(state, dict):
+        raise GovernanceError(f"治理状态文件必须是 JSON 对象：{path}")
+    last_lint_at = state.get("last_lint_at")
+    if last_lint_at is not None:
+        try:
+            parse_time(last_lint_at)
+        except (TypeError, ValueError) as exc:
+            raise GovernanceError(f"治理状态 last_lint_at 非法：{exc}") from exc
+    workflows = state.get("workflows_since_lint", 0)
+    if not isinstance(workflows, int) or workflows < 0:
+        raise GovernanceError("治理状态 workflows_since_lint 必须是非负整数")
+    return {"last_lint_at": last_lint_at, "workflows_since_lint": workflows}
+
+
+def write_governance_state(repo: Path, state: Dict[str, Any]) -> None:
+    atomic_write(
+        repo / STATE_FILE,
+        json.dumps(state, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+    )
+
+
+def record_lint_run(repo: Path, as_of: datetime) -> None:
+    write_governance_state(
+        repo,
+        {
+            "last_lint_at": as_of.astimezone(timezone.utc)
+            .isoformat(timespec="seconds")
+            .replace("+00:00", "Z"),
+            "workflows_since_lint": 0,
+        },
+    )
 
 
 def replace_managed_section(text: str, start: str, end: str, content: str) -> str:
@@ -405,12 +568,17 @@ def catalog_rows(entries: Iterable[Tuple[Path, Dict[str, Any], str]], repo: Path
     rows: List[str] = []
     for path, metadata, _ in sorted(entries, key=lambda item: str(item[0])):
         tags = ", ".join(metadata.get("tags", [])) or "-"
+        scope = metadata_scope(metadata)
+        owner = metadata.get("owner_id", "-")
         relative = path.relative_to(repo).as_posix()
         rows.append(
             f"| `{metadata['id']}` | {metadata['title']} | `{metadata['type']}` | "
-            f"`{metadata['maturity']}` | {tags} | `{relative}` |"
+            f"`{metadata['maturity']}` | `{scope}` | `{owner}` | {tags} | `{relative}` |"
         )
-    header = "| ID | 标题 | 类型 | 成熟度 | 标签 | 路径 |\n|---|---|---|---|---|---|"
+    header = (
+        "| ID | 标题 | 类型 | 成熟度 | 范围 | 所有者 | 标签 | 路径 |\n"
+        "|---|---|---|---|---|---|---|---|"
+    )
     if not rows:
         return "## 活跃知识\n\n_当前没有活跃知识条目。_"
     return f"## 活跃知识\n\n{header}\n" + "\n".join(rows)
@@ -427,6 +595,13 @@ def expected_catalogs(repo: Path) -> Dict[Path, str]:
     return {root / "catalog.md": catalog_rows(entries, repo) for root, entries in grouped.items()}
 
 
+def catalog_title(repo: Path, path: Path) -> str:
+    owner = personal_owner_for_path(repo, path)
+    if owner:
+        return f"# {owner} 的个人知识分类清单\n"
+    return "# 知识分类清单\n"
+
+
 def summary_section(repo: Path) -> str:
     active_counts = {layer: 0 for layer in sorted(LAYERS)}
     archived_counts = {layer: 0 for layer in sorted(LAYERS)}
@@ -438,6 +613,7 @@ def summary_section(repo: Path) -> str:
     return (
         "## 治理状态摘要\n\n"
         "| 层级 | 活跃条目 | 归档条目 |\n|---|---:|---:|\n"
+        f"| Layer 0-P | {active_counts['layer0p']} | {archived_counts['layer0p']} |\n"
         f"| Layer 1 | {active_counts['layer1']} | {archived_counts['layer1']} |\n"
         f"| Layer 2 | {active_counts['layer2']} | {archived_counts['layer2']} |\n"
         f"| Layer 3 | {active_counts['layer3']} | {archived_counts['layer3']} |"
@@ -449,7 +625,7 @@ def reindex(repo: Path) -> None:
         if path.exists():
             current = path.read_text(encoding="utf-8")
         else:
-            current = "# 知识分类清单\n"
+            current = catalog_title(repo, path)
         atomic_write(path, replace_managed_section(current, CATALOG_START, CATALOG_END, section))
 
     root_catalog = repo / "knowledge-catalog.md"
@@ -499,7 +675,8 @@ def archive_entry(
     reason: str,
     session: str,
 ) -> Path:
-    metadata, _ = read_entry(path)
+    metadata, body = read_entry(path)
+    require_valid_entry(repo, path, metadata, body)
     if metadata.get("maturity") != "draft":
         raise GovernanceError("只有 draft 知识可以归档")
     target = archive_target(repo, path)
@@ -537,6 +714,7 @@ def cmd_create(args: argparse.Namespace) -> None:
         "title": args.title,
         "type": args.type,
         "layer": args.layer,
+        "scope": args.scope,
         "maturity": "draft",
         "created_at": utc_now(),
         "tags": args.tag or [],
@@ -554,8 +732,12 @@ def cmd_create(args: argparse.Namespace) -> None:
         },
         "conflict_status": "none",
     }
+    if args.owner_id:
+        metadata["owner_id"] = args.owner_id
     body = f"# {args.title}\n\n{args.content.strip()}\n"
-    errors = validate_metadata(metadata, body)
+    errors = validate_metadata(metadata, body) + validate_path_metadata(repo, path, metadata)
+    if args.scope == "personal" and args.actor != args.owner_id:
+        errors.append("个人知识必须由 owner_id 对应的所有者创建")
     if errors:
         raise GovernanceError("无法创建非法条目：\n- " + "\n- ".join(errors))
     write_entry(path, metadata, body)
@@ -566,12 +748,14 @@ def cmd_create(args: argparse.Namespace) -> None:
 
 def cmd_reference(args: argparse.Namespace) -> None:
     repo = resolve_repo(args.repo)
-    require_role(args.role, ("contributor", "maintainer"))
+    require_role(args.role, ("reader", "contributor", "maintainer"))
     path = resolve_inside(repo, args.path)
     metadata, body = read_entry(path)
     _, _, archived, _ = layer_context(repo, path)
     if archived:
         raise GovernanceError("归档知识必须恢复后才能引用")
+    require_valid_entry(repo, path, metadata, body)
+    require_consumption_access(metadata, args.actor)
     record = {
         "project_id": args.project,
         "workflow_id": args.workflow,
@@ -595,6 +779,7 @@ def cmd_validate(args: argparse.Namespace) -> None:
     _, _, archived, _ = layer_context(repo, path)
     if archived:
         raise GovernanceError("归档知识必须恢复后才能验证")
+    require_valid_entry(repo, path, metadata, body)
     record = {
         "project_id": args.project,
         "workflow_id": args.workflow,
@@ -610,6 +795,7 @@ def cmd_validate(args: argparse.Namespace) -> None:
     if (
         args.result == "passed"
         and before == "draft"
+        and eligible_for_verified(metadata)
         and not conflict_blocks_upgrade(metadata)
     ):
         metadata["maturity"] = "verified"
@@ -625,6 +811,7 @@ def cmd_approve_proven(args: argparse.Namespace) -> None:
     require_role(args.role, ("maintainer",))
     path = resolve_inside(repo, args.path)
     metadata, body = read_entry(path)
+    require_valid_entry(repo, path, metadata, body)
     if metadata.get("maturity") != "verified":
         raise GovernanceError("只有 verified 知识可以提升为 proven")
     if conflict_blocks_upgrade(metadata):
@@ -662,24 +849,34 @@ def cmd_propose_promotion(args: argparse.Namespace) -> None:
     path = resolve_inside(repo, args.path)
     metadata, body = read_entry(path)
     actual_layer, _, archived, _ = layer_context(repo, path)
-    if archived or actual_layer != "layer3":
-        raise GovernanceError("只有活跃的 Layer 3 知识可以发起提升")
+    require_valid_entry(repo, path, metadata, body)
+    if archived or actual_layer not in {"layer0p", "layer3"}:
+        raise GovernanceError("只有活跃的个人知识或 Layer 3 知识可以发起提升")
+    if actual_layer == "layer0p":
+        owner_id = metadata.get("owner_id")
+        if args.owner_approved_by != owner_id:
+            raise GovernanceError(
+                f"个人知识转为团队知识前必须由所有者 {owner_id} 明确确认"
+            )
     if conflict_blocks_upgrade(metadata):
         raise GovernanceError("存在未解决冲突，层级提升已冻结")
-    if not has_successful_validation(metadata):
-        raise GovernanceError("提升候选至少需要一次成功验证")
+    if not eligible_for_verified(metadata):
+        raise GovernanceError("提升候选至少需要一次有对应引用的成功验证")
     target = destination_for_promotion(repo, args.target_layer, args.destination, path.name)
     metadata["promotion"]["candidate"] = True
     metadata["promotion"]["target_layer"] = args.target_layer
     metadata["promotion"]["target_path"] = target.relative_to(repo).as_posix()
     touch_contributor(metadata, args.actor)
     write_entry(path, metadata, body)
+    approval_detail = (
+        f"；所有者确认：{args.owner_approved_by}" if actual_layer == "layer0p" else ""
+    )
     append_log(
         repo,
         args.actor,
         "propose-promotion",
         metadata["id"],
-        f"{actual_layer} → {args.target_layer}；目标：{target.relative_to(repo)}",
+        f"{actual_layer} → {args.target_layer}；目标：{target.relative_to(repo)}{approval_detail}",
         args.session,
     )
     print(f"已发起层级提升：{metadata['id']} → {args.target_layer}")
@@ -691,13 +888,18 @@ def cmd_approve_promotion(args: argparse.Namespace) -> None:
     path = resolve_inside(repo, args.path)
     metadata, body = read_entry(path)
     actual_layer, source_root, archived, _ = layer_context(repo, path)
+    require_valid_entry(repo, path, metadata, body)
     promotion = metadata.get("promotion", {})
-    if archived or actual_layer != "layer3" or not promotion.get("candidate"):
-        raise GovernanceError("该条目不是有效的 Layer 3 提升候选")
+    if (
+        archived
+        or actual_layer not in {"layer0p", "layer3"}
+        or not promotion.get("candidate")
+    ):
+        raise GovernanceError("该条目不是有效的个人知识或 Layer 3 提升候选")
     if conflict_blocks_upgrade(metadata):
         raise GovernanceError("存在未解决冲突，层级提升已冻结")
-    if not has_successful_validation(metadata):
-        raise GovernanceError("提升候选至少需要一次成功验证")
+    if not eligible_for_verified(metadata):
+        raise GovernanceError("提升候选至少需要一次有对应引用的成功验证")
     target = resolve_inside(repo, promotion["target_path"])
     target_layer, _, target_archived, _ = layer_context(repo, target)
     if target_archived or target_layer != promotion["target_layer"]:
@@ -719,6 +921,9 @@ def cmd_approve_promotion(args: argparse.Namespace) -> None:
     promotion["target_layer"] = None
     promotion["target_path"] = None
     metadata["layer"] = target_layer
+    if actual_layer == "layer0p":
+        metadata["scope"] = "team"
+        metadata.pop("owner_id", None)
     touch_contributor(metadata, args.actor)
     write_entry(path, metadata, body)
     move_entry(path, target)
@@ -802,6 +1007,10 @@ def cmd_restore(args: argparse.Namespace) -> None:
     _, root, archived, active_relative = layer_context(repo, path)
     if not archived:
         raise GovernanceError("该知识不在 archive/ 中")
+    require_valid_entry(repo, path, metadata, body)
+    owner_id = metadata.get("owner_id") if metadata_scope(metadata) == "personal" else None
+    if owner_id and args.owner_confirmed_by != owner_id:
+        raise GovernanceError(f"恢复个人知识前必须由所有者 {owner_id} 重新确认")
     target = root / active_relative
     before = metadata.get("maturity")
     metadata["maturity"] = "draft"
@@ -809,15 +1018,6 @@ def cmd_restore(args: argparse.Namespace) -> None:
     metadata["promotion"]["target_layer"] = None
     metadata["promotion"]["target_path"] = None
     touch_contributor(metadata, args.actor)
-    metadata["evidence"]["references"].append(
-        {
-            "project_id": "knowledge-base",
-            "workflow_id": args.session,
-            "contributor": args.actor,
-            "referenced_at": utc_now(),
-            "used_in": f"恢复归档知识：{args.reason}",
-        }
-    )
     write_entry(path, metadata, body)
     move_entry(path, target)
     reindex(repo)
@@ -826,7 +1026,9 @@ def cmd_restore(args: argparse.Namespace) -> None:
         args.actor,
         "restore",
         metadata["id"],
-        f"{path.relative_to(repo)} → {target.relative_to(repo)}；{before} → draft；原因：{args.reason}",
+        f"{path.relative_to(repo)} → {target.relative_to(repo)}；{before} → draft；"
+        f"原因：{args.reason}"
+        + (f"；所有者确认：{args.owner_confirmed_by}" if owner_id else ""),
         args.session,
     )
     print(f"已恢复为 draft：{target.relative_to(repo)}")
@@ -928,6 +1130,7 @@ def lint_entries(repo: Path, as_of: datetime) -> Tuple[List[str], List[Tuple[Pat
             continue
 
         errors = validate_metadata(metadata, body)
+        errors.extend(validate_path_metadata(repo, path, metadata))
         for error in errors:
             issues.append(f"INVALID {relative}: {error}")
         if errors:
@@ -946,6 +1149,9 @@ def lint_entries(repo: Path, as_of: datetime) -> Tuple[List[str], List[Tuple[Pat
             )
         else:
             ids[knowledge_id] = path
+
+        if conflict_blocks_upgrade(metadata):
+            issues.append(f"CONFLICT_OPEN {relative}: 存在未解决冲突")
 
         if archived:
             continue
@@ -967,9 +1173,8 @@ def lint_entries(repo: Path, as_of: datetime) -> Tuple[List[str], List[Tuple[Pat
         elif (
             maturity == "draft"
             and age_days >= DRAFT_ARCHIVE_DAYS
-            and not has_effective_validation(metadata, as_of)
         ):
-            issues.append(f"ARCHIVE_DUE {relative}: draft 已 {age_days} 天未引用且无有效成功验证")
+            issues.append(f"ARCHIVE_DUE {relative}: draft 已 {age_days} 天未引用")
             actions.append((path, "archive"))
     return issues, actions
 
@@ -1000,8 +1205,10 @@ def cmd_lint(args: argparse.Namespace) -> None:
                     args.session,
                 )
             elif action == "archive":
-                archive_entry(repo, path, args.actor, "Lint：长期未引用且无有效成功验证", args.session)
+                archive_entry(repo, path, args.actor, "Lint：draft 长期未引用", args.session)
         reindex(repo)
+
+    record_lint_run(repo, as_of)
 
     if issues:
         for issue in issues:
@@ -1012,6 +1219,46 @@ def cmd_lint(args: argparse.Namespace) -> None:
             raise GovernanceError(f"Lint 发现 {len(issues)} 个问题")
     else:
         print("Lint 通过：未发现问题")
+
+
+def cmd_workflow_start(args: argparse.Namespace) -> None:
+    repo = resolve_repo(args.repo)
+    require_role(args.role, ("reader", "contributor", "maintainer", "system"))
+    as_of = parse_time(args.at) if args.at else datetime.now(timezone.utc)
+    state = read_governance_state(repo)
+    last_lint_at = state["last_lint_at"]
+    if last_lint_at is None:
+        print("Lint 提醒：知识库还没有执行记录，请在本工作流中执行 Lint")
+        return
+    age_days = (as_of - parse_time(last_lint_at)).days
+    if age_days >= LINT_REMINDER_DAYS:
+        print(f"Lint 提醒：距离上次执行已 {age_days} 天，请在本工作流中执行 Lint")
+    else:
+        print(f"Lint 状态正常：距离上次执行 {max(age_days, 0)} 天")
+
+
+def cmd_workflow_complete(args: argparse.Namespace) -> None:
+    repo = resolve_repo(args.repo)
+    require_role(args.role, ("maintainer", "system"))
+    state = read_governance_state(repo)
+    state["workflows_since_lint"] += 1
+    write_governance_state(repo, state)
+    count = state["workflows_since_lint"]
+    if count < LINT_WORKFLOW_INTERVAL:
+        print(f"已记录工作流完成：距下次自动 Lint 还有 {LINT_WORKFLOW_INTERVAL - count} 个")
+        return
+
+    print(f"已完成 {count} 个工作流，自动执行 Lint")
+    cmd_lint(
+        argparse.Namespace(
+            repo=str(repo),
+            fix=True,
+            as_of=args.at,
+            actor=args.actor,
+            role=args.role,
+            session=args.session,
+        )
+    )
 
 
 def cmd_reindex(args: argparse.Namespace) -> None:
@@ -1038,6 +1285,8 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--title", required=True)
     create.add_argument("--type", required=True, choices=sorted(KNOWLEDGE_TYPES))
     create.add_argument("--layer", required=True, choices=sorted(LAYERS))
+    create.add_argument("--scope", choices=sorted(SCOPES), default="team")
+    create.add_argument("--owner-id", help="个人知识所有者；scope=personal 时必填")
     create.add_argument("--source", required=True, action="append")
     create.add_argument("--tag", action="append")
     create.add_argument("--content", required=True)
@@ -1050,7 +1299,7 @@ def build_parser() -> argparse.ArgumentParser:
     reference.add_argument("--workflow", required=True)
     reference.add_argument("--used-in", required=True)
     reference.add_argument("--at", help="ISO 8601 引用时间；默认当前时间")
-    add_actor_options(reference, ("contributor", "maintainer"))
+    add_actor_options(reference, ("reader", "contributor", "maintainer"))
     reference.set_defaults(func=cmd_reference)
 
     validate = subparsers.add_parser("validate", help="记录验证并自动执行 draft → verified")
@@ -1068,13 +1317,17 @@ def build_parser() -> argparse.ArgumentParser:
     add_actor_options(proven, ("maintainer",))
     proven.set_defaults(func=cmd_approve_proven)
 
-    propose = subparsers.add_parser("propose-promotion", help="发起 Layer 3 层级提升")
+    propose = subparsers.add_parser("propose-promotion", help="发起个人知识或 Layer 3 层级提升")
     propose.add_argument("path")
     propose.add_argument("--target-layer", required=True, choices=("layer1", "layer2"))
     propose.add_argument(
         "--destination",
         required=True,
         help="目标层内的相对目录；Layer 2 必须以 domain 开头",
+    )
+    propose.add_argument(
+        "--owner-approved-by",
+        help="个人知识转为团队知识时，填写明确同意的 owner_id",
     )
     add_actor_options(propose, ("contributor", "maintainer"))
     propose.set_defaults(func=cmd_propose_promotion)
@@ -1100,6 +1353,10 @@ def build_parser() -> argparse.ArgumentParser:
     restore = subparsers.add_parser("restore", help="从 archive/ 恢复为 draft")
     restore.add_argument("path")
     restore.add_argument("--reason", required=True)
+    restore.add_argument(
+        "--owner-confirmed-by",
+        help="恢复个人知识时，填写重新确认的 owner_id",
+    )
     add_actor_options(restore, ("maintainer",))
     restore.set_defaults(func=cmd_restore)
 
@@ -1122,6 +1379,25 @@ def build_parser() -> argparse.ArgumentParser:
     lint.add_argument("--role", default="reader", choices=sorted(ROLES))
     lint.add_argument("--session", default="manual")
     lint.set_defaults(func=cmd_lint)
+
+    workflow_start = subparsers.add_parser(
+        "workflow-start",
+        help="工作流启动时检查是否超过 30 天未执行 Lint",
+    )
+    workflow_start.add_argument("--at", help="ISO 8601 检查时间；默认当前时间")
+    add_actor_options(
+        workflow_start,
+        ("reader", "contributor", "maintainer", "system"),
+    )
+    workflow_start.set_defaults(func=cmd_workflow_start)
+
+    workflow_complete = subparsers.add_parser(
+        "workflow-complete",
+        help="记录工作流完成，并在累计 10 次时自动执行 Lint",
+    )
+    workflow_complete.add_argument("--at", help="ISO 8601 完成时间；默认当前时间")
+    add_actor_options(workflow_complete, ("maintainer", "system"))
+    workflow_complete.set_defaults(func=cmd_workflow_complete)
 
     index = subparsers.add_parser("reindex", help="重建受治理的目录区块")
     add_actor_options(index, ("maintainer", "system"))
