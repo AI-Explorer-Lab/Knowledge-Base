@@ -32,6 +32,11 @@ class KnowledgeOptionsResponse(ResponseModel):
     preview_ttl_seconds: int
 
 
+class KnowledgeTemplateResponse(ResponseModel):
+    type: KnowledgeType
+    content: str
+
+
 class MemberResponse(ResponseModel):
     id: str
     display_name: str

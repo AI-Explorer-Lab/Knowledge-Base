@@ -152,6 +152,55 @@ def test_development_identity_is_fixed_and_reader_cannot_create(repo: Path):
     assert reader.post("/api/knowledge/preview", json=personal_payload()).status_code == 403
 
 
+def test_knowledge_templates_are_controlled_and_role_protected(repo: Path):
+    contributor = client_for(repo, "lisi")
+    template_dir = Path(__file__).resolve().parents[1] / "template"
+    filenames = {
+        "model": "model.md",
+        "decision": "decision.md",
+        "guideline": "guideline.md",
+        "pitfall": "pitfall.md",
+        "process": "process.md",
+    }
+
+    for knowledge_type, filename in filenames.items():
+        response = contributor.get(f"/api/knowledge/templates/{knowledge_type}")
+        assert response.status_code == 200, response.text
+        assert response.json() == {
+            "type": knowledge_type,
+            "content": (template_dir / filename).read_text(encoding="utf-8"),
+        }
+        assert response.json()["content"].startswith("## ")
+        assert not any(
+            line.startswith("# ") for line in response.json()["content"].splitlines()
+        )
+
+    invalid = contributor.get("/api/knowledge/templates/../../README.md")
+    assert invalid.status_code in {404, 422}
+
+    unsupported = contributor.get("/api/knowledge/templates/unknown")
+    assert unsupported.status_code == 422
+
+    reader = client_for(repo, "wangwu")
+    assert reader.get("/api/knowledge/templates/guideline").status_code == 403
+
+
+def test_knowledge_template_missing_or_empty_returns_clear_error(repo: Path):
+    contributor = client_for(repo, "lisi", raise_server_exceptions=False)
+    isolated_templates = repo / "templates"
+    isolated_templates.mkdir()
+    contributor.app.state.knowledge_templates.template_dir = isolated_templates
+
+    missing = contributor.get("/api/knowledge/templates/guideline")
+    assert missing.status_code == 500
+    assert missing.json()["detail"]["code"] == "knowledge_template_unavailable"
+
+    (isolated_templates / "guideline.md").write_text("   \n", encoding="utf-8")
+    empty = contributor.get("/api/knowledge/templates/guideline")
+    assert empty.status_code == 500
+    assert empty.json()["detail"]["code"] == "knowledge_template_empty"
+
+
 def test_health_lifespan_database_and_request_id(repo: Path):
     runtime = load_environment(
         "test",

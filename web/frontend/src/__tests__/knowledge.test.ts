@@ -4,6 +4,7 @@ import {
   buildKnowledgePayload,
   categoryForType,
   initialKnowledgeDraft,
+  shouldConfirmTemplateReplacement,
   validateKnowledgeDraft,
 } from '@/utils/knowledge'
 import type { KnowledgeOptions } from '@/types'
@@ -92,6 +93,15 @@ describe('knowledge request shaping', () => {
 
   it('normalizes a category to an allowed server option', () => {
     expect(categoryForType('guideline', 'layer1', options)).toBe('patterns')
+  })
+
+  it('protects edited content before replacing a knowledge template', () => {
+    const originalTemplate = '## 推荐做法\n\n请填写'
+
+    expect(shouldConfirmTemplateReplacement('', null)).toBe(false)
+    expect(shouldConfirmTemplateReplacement(originalTemplate, originalTemplate)).toBe(false)
+    expect(shouldConfirmTemplateReplacement(`${originalTemplate}\n用户补充`, originalTemplate)).toBe(true)
+    expect(shouldConfirmTemplateReplacement('从预览页返回的正文', null)).toBe(true)
   })
 })
 
