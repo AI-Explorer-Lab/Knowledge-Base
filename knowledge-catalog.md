@@ -1,12 +1,12 @@
 # 知识全景目录
 
-> 本文件是 Agent 查询知识库的 Layer A 入口。知识分层和阶段查询路径来自微信公众号原文；Layer 0-P 按本项目要求调整为项目内的成员子目录。
+> 本文件是 Agent 查询知识库的 Layer A 入口。知识分层和阶段查询路径来自微信公众号原文；Layer 0-P 按本项目要求调整为团队仓库内的成员子目录，个人知识团队可见但只允许所有者消费。
 
 ## 知识分层
 
 | 层级 | 内容 | 位置 | 共享范围 |
 |---|---|---|---|
-| Layer 0-P | 个人偏好 | `personal-prefernece/{用户名}/` | 按成员子目录区分 |
+| Layer 0-P | 个人偏好与个人知识 | `personal-prefernece/{用户名}/` | 团队可见；个人知识仅所有者消费 |
 | Layer 0-T | 团队约定 | `team-conventions/` | 团队级，Git 共享 |
 | Layer 1 | 技术知识 | `tech-wiki/` | 团队级，跨项目 |
 | Layer 2 | 业务知识 | `biz-wiki/{domain}/` | 团队级，按领域组织 |
@@ -35,7 +35,8 @@ Layer A：读取本目录
 
 ## 分类入口
 
-- Layer 0-P 个人偏好：`personal-prefernece/{用户名}/`
+- Layer 0-P 个人偏好：`personal-prefernece/{用户名}/preferences.md`
+- Layer 0-P 个人知识：`personal-prefernece/{用户名}/knowledge/catalog.md`
 - Layer 0-T 团队约定：`team-conventions/`
 - Layer 1 技术知识：`tech-wiki/catalog.md`
 - Layer 2 业务知识：`biz-wiki/{domain}/catalog.md`
@@ -46,7 +47,8 @@ Layer A：读取本目录
 
 | 层级 | 活跃条目 | 归档条目 |
 |---|---:|---:|
-| Layer 1 | 0 | 0 |
+| Layer 0-P | 1 | 0 |
+| Layer 1 | 1 | 0 |
 | Layer 2 | 0 | 0 |
 | Layer 3 | 0 | 0 |
 <!-- knowledge-summary:end -->
