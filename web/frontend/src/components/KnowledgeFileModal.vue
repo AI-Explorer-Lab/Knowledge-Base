@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Copy, X } from 'lucide-vue-next'
+import { Copy, Tags, X } from 'lucide-vue-next'
 import type { KnowledgeFile } from '@/types'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
 import { pushToast } from '@/composables/useToast'
@@ -42,6 +42,13 @@ async function copyPath() {
               <span class="knowledge-tag">{{ knowledge.scope }}</span>
               <span class="knowledge-tag">{{ knowledge.layer }}</span>
               <span class="knowledge-tag">{{ knowledge.maturity }}</span>
+            </div>
+            <div class="file-tag-section">
+              <span class="file-section-label"><Tags :size="16" />标签</span>
+              <div v-if="knowledge.tags.length" class="file-tag-list">
+                <span v-for="tag in knowledge.tags" :key="tag">#{{ tag }}</span>
+              </div>
+              <span v-else class="file-no-tags">暂无标签</span>
             </div>
             <div class="path-box file-path-box">
               <code>{{ knowledge.relative_path }}</code>

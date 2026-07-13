@@ -3,6 +3,7 @@ export type MemberStatus = 'active' | 'disabled'
 export type KnowledgeScope = 'personal' | 'team'
 export type KnowledgeLayer = 'layer0p' | 'layer1' | 'layer2' | 'layer3'
 export type KnowledgeType = 'model' | 'decision' | 'guideline' | 'pitfall' | 'process'
+export type KnowledgeMaturity = 'draft' | 'verified' | 'proven'
 
 export interface Member {
   id: string
@@ -14,6 +15,7 @@ export interface Member {
 export interface CurrentUserResponse {
   member: Member
   permissions: {
+    can_browse_knowledge: boolean
     can_create_knowledge: boolean
     can_manage_members: boolean
   }
@@ -83,7 +85,7 @@ export interface CreatedKnowledge {
   scope: KnowledgeScope
   owner_id: string | null
   layer: KnowledgeLayer
-  maturity: 'draft'
+  maturity: KnowledgeMaturity
   created_at: string
   tags: string[]
   source_references: string[]
@@ -106,6 +108,16 @@ export interface CreateKnowledgeResponse {
 
 export interface KnowledgeFile extends CreatedKnowledge {
   content: string
+}
+
+export interface KnowledgeListItem extends Omit<CreatedKnowledge, 'source_references'> {
+  excerpt: string
+}
+
+export interface KnowledgeListResponse {
+  items: KnowledgeListItem[]
+  counts: Record<KnowledgeLayer, number>
+  total: number
 }
 
 export interface MembersResponse {

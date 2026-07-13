@@ -270,6 +270,37 @@ def test_personal_preview_create_idempotent_retry_and_by_id_view(repo: Path):
     assert path.stat().st_mtime_ns == mtime_before_view
     assert governance.read_entry(path)[0]["evidence"] == evidence_before_view
 
+    reader = client_for(repo, "wangwu")
+    listing = reader.get("/api/knowledge", params={"layer": "layer0p"})
+    assert listing.status_code == 200, listing.text
+    listing_data = listing.json()
+    assert listing_data["total"] == 1
+    assert listing_data["counts"] == {
+        "layer0p": 1,
+        "layer1": 0,
+        "layer2": 0,
+        "layer3": 0,
+    }
+    assert listing_data["items"][0] == {
+        "id": result["knowledge"]["id"],
+        "title": personal_payload()["title"],
+        "type": "guideline",
+        "scope": "personal",
+        "owner_id": "lisi",
+        "layer": "layer0p",
+        "maturity": "draft",
+        "created_at": result["knowledge"]["created_at"],
+        "tags": ["api", "debug"],
+        "relative_path": result["knowledge"]["relative_path"],
+        "excerpt": personal_payload()["content"],
+    }
+    search = reader.get("/api/knowledge", params={"q": "端口排查"})
+    assert search.status_code == 200
+    assert search.json()["total"] == 1
+    assert reader.get("/api/knowledge", params={"layer": "unknown"}).status_code == 422
+    assert path.read_bytes() == content_before_view
+    assert governance.read_entry(path)[0]["evidence"] == evidence_before_view
+
 
 def test_actor_form_and_storage_fields_cannot_be_forged(repo: Path):
     lisi = client_for(repo, "lisi")

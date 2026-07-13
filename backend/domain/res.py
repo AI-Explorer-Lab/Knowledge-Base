@@ -4,7 +4,14 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict
 
-from backend.constant.enums import KnowledgeScope, KnowledgeType, MemberRole, MemberStatus
+from backend.constant.enums import (
+    KnowledgeLayer,
+    KnowledgeMaturity,
+    KnowledgeScope,
+    KnowledgeType,
+    MemberRole,
+    MemberStatus,
+)
 
 
 class ResponseModel(BaseModel):
@@ -98,6 +105,26 @@ class CreateKnowledgeResponse(ResponseModel):
 
 class KnowledgeFileResponse(ResponseModel):
     knowledge: Dict[str, Any]
+
+
+class KnowledgeListItem(ResponseModel):
+    id: str
+    title: str
+    type: KnowledgeType
+    scope: KnowledgeScope
+    owner_id: Optional[str]
+    layer: KnowledgeLayer
+    maturity: KnowledgeMaturity
+    created_at: str
+    tags: List[str]
+    relative_path: str
+    excerpt: str
+
+
+class KnowledgeListResponse(ResponseModel):
+    items: List[KnowledgeListItem]
+    counts: Dict[KnowledgeLayer, int]
+    total: int
 
 
 class HealthResponse(ResponseModel):

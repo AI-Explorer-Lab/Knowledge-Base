@@ -30,6 +30,17 @@ const options: KnowledgeOptions = {
 }
 
 describe('knowledge request shaping', () => {
+  it('opens a new injection flow without example content', () => {
+    const draft = initialKnowledgeDraft()
+
+    expect(draft).toMatchObject({
+      title: '',
+      tags: [],
+      source_references: [''],
+      content: '',
+    })
+  })
+
   it('omits all backend-derived and hidden fields for personal knowledge', () => {
     const draft = initialKnowledgeDraft()
     draft.layer = 'layer2'
