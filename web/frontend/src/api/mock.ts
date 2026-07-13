@@ -13,10 +13,11 @@ import type {
   MembersResponse,
   PreviewResponse,
   Role,
+  TechnicalDirection,
 } from '@/types'
 import { ApiError } from '@/types'
 
-const wait = (milliseconds = 180) => new Promise((resolve) => window.setTimeout(resolve, milliseconds))
+const wait = (milliseconds = 180) => new Promise((resolve) => globalThis.setTimeout(resolve, milliseconds))
 
 const members: Member[] = [
   { id: 'zhangsan', display_name: '张三', role: 'maintainer', status: 'active' },
@@ -211,6 +212,53 @@ const knowledgeTemplates: Record<KnowledgeType, string> = {
 `,
 }
 
+const technicalDirectionTemplates: Record<TechnicalDirection, string> = {
+  patterns: `## 模式摘要
+
+请概括这个正向技术模式解决的问题和核心做法。
+
+## 复用条件
+
+请说明采用这个模式前需要满足的技术条件和适用边界。
+
+## 收益与代价
+
+请记录采用这个模式能够获得的收益，以及需要承担的复杂度或成本。
+
+## 验证案例
+
+请提供已经验证该模式有效的项目、场景或结果。
+
+---
+
+以下内容请继续按照所选知识类型填写。
+`,
+  'anti-patterns': `## 反模式摘要
+
+请概括这个反模式中的错误做法，以及它通常出现在哪些场景。
+
+## 识别信号与危害
+
+请记录能够识别该反模式的现象、风险和实际影响。
+
+## 产生原因
+
+请说明团队为什么容易采用这种做法。
+
+## 推荐替代方案
+
+请说明应该改用什么方案，以及替代方案解决问题的方式。
+
+## 迁移方式
+
+请列出从反模式迁移到推荐方案的步骤和注意事项。
+
+---
+
+以下内容请继续按照所选知识类型填写。
+`,
+}
+
 const typeCodes = {
   model: 'MDL',
   decision: 'DEC',
@@ -340,9 +388,16 @@ export async function mockCreateBusinessDomain(payload: {
   return { business_domain: structuredClone(businessDomain) }
 }
 
-export async function mockGetKnowledgeTemplate(type: KnowledgeType): Promise<KnowledgeTemplate> {
+export async function mockGetKnowledgeTemplate(
+  type: KnowledgeType,
+  technicalDirection?: TechnicalDirection,
+): Promise<KnowledgeTemplate> {
   await wait(80)
-  return { type, content: knowledgeTemplates[type] }
+  const baseContent = knowledgeTemplates[type]
+  const content = technicalDirection
+    ? `${technicalDirectionTemplates[technicalDirection].trimEnd()}\n\n${baseContent.trimStart()}`
+    : baseContent
+  return { type, technical_direction: technicalDirection ?? null, content }
 }
 
 export async function mockPreviewKnowledge(draft: KnowledgeDraft): Promise<PreviewResponse> {

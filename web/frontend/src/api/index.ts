@@ -27,6 +27,7 @@ import type {
   MembersResponse,
   PreviewResponse,
   Role,
+  TechnicalDirection,
 } from '@/types'
 
 export const isMockApi = import.meta.env.DEV && (
@@ -49,10 +50,16 @@ export const createBusinessDomain = (payload: {
     ? mockCreateBusinessDomain(payload)
     : apiRequest('/business-domains', { method: 'POST', body: JSON.stringify(payload) })
 
-export const getKnowledgeTemplate = (type: KnowledgeType): Promise<KnowledgeTemplate> =>
-  isMockApi
-    ? mockGetKnowledgeTemplate(type)
-    : apiRequest(`/knowledge/templates/${encodeURIComponent(type)}`)
+export const getKnowledgeTemplate = (
+  type: KnowledgeType,
+  technicalDirection?: TechnicalDirection,
+): Promise<KnowledgeTemplate> => {
+  if (isMockApi) return mockGetKnowledgeTemplate(type, technicalDirection)
+  const params = new URLSearchParams()
+  if (technicalDirection) params.set('technical_direction', technicalDirection)
+  const suffix = params.size ? `?${params.toString()}` : ''
+  return apiRequest(`/knowledge/templates/${encodeURIComponent(type)}${suffix}`)
+}
 
 export const getKnowledgeById = (knowledgeId: string): Promise<{ knowledge: KnowledgeFile }> =>
   isMockApi

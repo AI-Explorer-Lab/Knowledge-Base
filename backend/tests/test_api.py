@@ -157,6 +157,7 @@ def test_knowledge_templates_are_controlled_and_role_protected(repo: Path):
         assert response.status_code == 200, response.text
         assert response.json() == {
             "type": knowledge_type,
+            "technical_direction": None,
             "content": (template_dir / filename).read_text(encoding="utf-8"),
         }
         assert response.json()["content"].startswith("## ")
@@ -169,6 +170,30 @@ def test_knowledge_templates_are_controlled_and_role_protected(repo: Path):
 
     unsupported = contributor.get("/api/knowledge/templates/unknown")
     assert unsupported.status_code == 422
+
+    base_content = (template_dir / "guideline.md").read_text(encoding="utf-8")
+    direction_files = {
+        "patterns": "pattern.md",
+        "anti-patterns": "anti-pattern.md",
+    }
+    for technical_direction, filename in direction_files.items():
+        direction_content = (template_dir / filename).read_text(encoding="utf-8")
+        response = contributor.get(
+            "/api/knowledge/templates/guideline",
+            params={"technical_direction": technical_direction},
+        )
+        assert response.status_code == 200, response.text
+        assert response.json() == {
+            "type": "guideline",
+            "technical_direction": technical_direction,
+            "content": f"{direction_content.rstrip()}\n\n{base_content.lstrip()}",
+        }
+
+    invalid_direction = contributor.get(
+        "/api/knowledge/templates/guideline",
+        params={"technical_direction": "unknown"},
+    )
+    assert invalid_direction.status_code == 422
 
     reader = client_for(repo, "wangwu")
     assert reader.get("/api/knowledge/templates/guideline").status_code == 403
@@ -188,6 +213,22 @@ def test_knowledge_template_missing_or_empty_returns_clear_error(repo: Path):
     empty = contributor.get("/api/knowledge/templates/guideline")
     assert empty.status_code == 500
     assert empty.json()["detail"]["code"] == "knowledge_template_empty"
+
+    (isolated_templates / "guideline.md").write_text("## 指南\n", encoding="utf-8")
+    missing_direction = contributor.get(
+        "/api/knowledge/templates/guideline",
+        params={"technical_direction": "patterns"},
+    )
+    assert missing_direction.status_code == 500
+    assert missing_direction.json()["detail"]["code"] == "knowledge_template_unavailable"
+
+    (isolated_templates / "pattern.md").write_text("\n", encoding="utf-8")
+    empty_direction = contributor.get(
+        "/api/knowledge/templates/guideline",
+        params={"technical_direction": "patterns"},
+    )
+    assert empty_direction.status_code == 500
+    assert empty_direction.json()["detail"]["code"] == "knowledge_template_empty"
 
 
 def test_health_lifespan_database_and_request_id(repo: Path):

@@ -11,6 +11,7 @@ from backend.constant.enums import (
     KnowledgeType,
     MemberRole,
     MemberStatus,
+    TechnicalDirection,
 )
 
 
@@ -40,6 +41,7 @@ class KnowledgeOptionsResponse(ResponseModel):
 
 class KnowledgeTemplateResponse(ResponseModel):
     type: KnowledgeType
+    technical_direction: Optional[TechnicalDirection]
     content: str
 
 

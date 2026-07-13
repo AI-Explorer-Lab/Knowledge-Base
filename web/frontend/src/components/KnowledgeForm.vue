@@ -22,7 +22,13 @@ import {
 } from 'lucide-vue-next'
 import { getKnowledgeTemplate } from '@/api'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
-import type { KnowledgeDraft, KnowledgeLayer, KnowledgeOptions, KnowledgeType } from '@/types'
+import type {
+  KnowledgeDraft,
+  KnowledgeLayer,
+  KnowledgeOptions,
+  KnowledgeType,
+  TechnicalDirection,
+} from '@/types'
 import { ApiError } from '@/types'
 import type { KnowledgeErrors } from '@/utils/knowledge'
 import {
@@ -43,17 +49,26 @@ const emit = defineEmits<{
   'add-business-domain': []
 }>()
 
+interface TemplateSelection {
+  type: KnowledgeType
+  technicalDirection: TechnicalDirection | null
+  change: 'type' | 'technical-direction'
+}
+
 const editor = ref<HTMLTextAreaElement | null>(null)
 const tagField = ref<HTMLInputElement | null>(null)
 const tagInput = ref('')
 const selectedType = ref<KnowledgeType>(props.draft.type)
+const selectedTechnicalDirection = ref<TechnicalDirection | ''>(
+  props.draft.technical_direction ?? '',
+)
 const templateLoading = ref(false)
 const templateError = ref('')
-const loadedTemplateType = ref<KnowledgeType | null>(null)
+const loadedTemplateKey = ref<string | null>(null)
 const loadedTemplateContent = ref<string | null>(null)
-const pendingTemplateType = ref<KnowledgeType | null>(null)
-const retryTemplateType = ref<KnowledgeType | null>(null)
-const templateCache = new Map<KnowledgeType, string>()
+const pendingTemplateSelection = ref<TemplateSelection | null>(null)
+const retryTemplateSelection = ref<TemplateSelection | null>(null)
+const templateCache = new Map<string, string>()
 let templateRequestId = 0
 
 onBeforeUnmount(() => {
@@ -76,6 +91,24 @@ const selectedLayer = computed<KnowledgeLayer>(() =>
   props.draft.scope === 'personal' ? 'layer0p' : (props.draft.layer ?? 'layer1'),
 )
 
+const activeTechnicalDirection = computed<TechnicalDirection | null>(() =>
+  props.draft.scope === 'team' && props.draft.layer === 'layer1'
+    ? (props.draft.technical_direction ?? null)
+    : null,
+)
+
+const loadingTemplateLabel = computed(() =>
+  selectedTechnicalDirection.value
+    ? `${selectedTechnicalDirection.value} / ${selectedType.value}`
+    : selectedType.value,
+)
+
+const templateDialogDescription = computed(() =>
+  pendingTemplateSelection.value?.change === 'technical-direction'
+    ? '当前正文已经被修改。切换技术知识方向会使用新的方向补充模板和知识类型模板替换现有正文，此操作无法撤销。'
+    : '当前正文已经被修改。切换知识类型会使用新模板替换现有正文，此操作无法撤销。',
+)
+
 const storageLocation = computed(() => {
   const base = formatLayer(selectedLayer.value)
   if (selectedLayer.value === 'layer1' && props.draft.technical_direction) {
@@ -90,9 +123,11 @@ const storageLocation = computed(() => {
 watch(templateLoading, (loading) => emit('template-loading', loading))
 
 watch(
-  () => props.draft.type,
-  (type) => {
-    if (!templateLoading.value && pendingTemplateType.value === null) selectedType.value = type
+  () => [props.draft.type, props.draft.technical_direction] as const,
+  ([type, technicalDirection]) => {
+    if (templateLoading.value || pendingTemplateSelection.value !== null) return
+    selectedType.value = type
+    selectedTechnicalDirection.value = technicalDirection ?? ''
   },
 )
 
@@ -162,14 +197,42 @@ function removeSource(index: number) {
   props.draft.source_references.splice(index, 1)
 }
 
-async function templateContent(type: KnowledgeType): Promise<string> {
-  const cached = templateCache.get(type)
+function templateSelectionKey(
+  type: KnowledgeType,
+  technicalDirection: TechnicalDirection | null,
+): string {
+  return `${type}:${technicalDirection ?? 'base'}`
+}
+
+function currentTemplateSelection(change: TemplateSelection['change']): TemplateSelection {
+  return {
+    type: props.draft.type,
+    technicalDirection: activeTechnicalDirection.value,
+    change,
+  }
+}
+
+function syncTemplateSelectors() {
+  selectedType.value = props.draft.type
+  selectedTechnicalDirection.value = activeTechnicalDirection.value ?? ''
+}
+
+async function templateContent(selection: TemplateSelection): Promise<string> {
+  const key = templateSelectionKey(selection.type, selection.technicalDirection)
+  const cached = templateCache.get(key)
   if (cached !== undefined) return cached
-  const response = await getKnowledgeTemplate(type)
-  if (response.type !== type || !response.content.trim()) {
+  const response = await getKnowledgeTemplate(
+    selection.type,
+    selection.technicalDirection ?? undefined,
+  )
+  if (
+    response.type !== selection.type
+    || response.technical_direction !== selection.technicalDirection
+    || !response.content.trim()
+  ) {
     throw new Error('后端返回的知识模板无效')
   }
-  templateCache.set(type, response.content)
+  templateCache.set(key, response.content)
   return response.content
 }
 
@@ -181,85 +244,114 @@ function templateErrorMessage(reason: unknown): string {
       : '知识模板加载失败，请稍后重试'
 }
 
-async function loadTemplate(type: KnowledgeType, mode: 'initial' | 'switch') {
+async function loadTemplate(selection: TemplateSelection) {
   const requestId = ++templateRequestId
-  const contentBeforeRequest = props.draft.content
+  const contextBeforeRequest = `${props.draft.scope}:${props.draft.layer ?? 'layer0p'}`
   templateLoading.value = true
   templateError.value = ''
-  retryTemplateType.value = null
+  retryTemplateSelection.value = null
 
   try {
-    const content = await templateContent(type)
+    const content = await templateContent(selection)
     if (requestId !== templateRequestId) return
-
-    if (mode === 'initial') {
-      if (props.draft.type !== type || props.draft.content !== contentBeforeRequest) return
-    } else {
-      props.draft.type = type
+    if (`${props.draft.scope}:${props.draft.layer ?? 'layer0p'}` !== contextBeforeRequest) {
+      syncTemplateSelectors()
+      return
     }
 
+    props.draft.type = selection.type
+    if (
+      props.draft.scope === 'team'
+      && props.draft.layer === 'layer1'
+      && selection.technicalDirection
+    ) {
+      props.draft.technical_direction = selection.technicalDirection
+    }
     props.draft.content = content
-    selectedType.value = type
-    loadedTemplateType.value = type
+    selectedType.value = selection.type
+    selectedTechnicalDirection.value = selection.technicalDirection ?? ''
+    loadedTemplateKey.value = templateSelectionKey(
+      selection.type,
+      selection.technicalDirection,
+    )
     loadedTemplateContent.value = content
   } catch (reason) {
     if (requestId !== templateRequestId) return
-    selectedType.value = props.draft.type
-    retryTemplateType.value = type
-    templateError.value = mode === 'switch'
-      ? `${templateErrorMessage(reason)}，已保留原有类型和正文`
-      : templateErrorMessage(reason)
+    syncTemplateSelectors()
+    retryTemplateSelection.value = selection
+    templateError.value = `${templateErrorMessage(reason)}，已保留原有类型和正文`
   } finally {
     if (requestId === templateRequestId) templateLoading.value = false
   }
 }
 
-function requestTypeChange(type: KnowledgeType) {
-  if (type === props.draft.type) {
+function requestTemplateChange(selection: TemplateSelection) {
+  const currentSelection = currentTemplateSelection(selection.change)
+  const currentKey = templateSelectionKey(
+    currentSelection.type,
+    currentSelection.technicalDirection,
+  )
+  const nextKey = templateSelectionKey(selection.type, selection.technicalDirection)
+  if (nextKey === currentKey) {
     templateRequestId += 1
     templateLoading.value = false
     templateError.value = ''
-    retryTemplateType.value = null
-    selectedType.value = props.draft.type
+    retryTemplateSelection.value = null
+    syncTemplateSelectors()
     return
   }
-  const currentTemplate = loadedTemplateType.value === props.draft.type
+  const currentTemplate = loadedTemplateKey.value === currentKey
     ? loadedTemplateContent.value
     : null
   if (shouldConfirmTemplateReplacement(props.draft.content, currentTemplate)) {
-    pendingTemplateType.value = type
-    selectedType.value = props.draft.type
+    pendingTemplateSelection.value = selection
+    syncTemplateSelectors()
     return
   }
-  void loadTemplate(type, 'switch')
+  void loadTemplate(selection)
 }
 
 function onTypeChange() {
-  requestTypeChange(selectedType.value)
+  requestTemplateChange({
+    type: selectedType.value,
+    technicalDirection: activeTechnicalDirection.value,
+    change: 'type',
+  })
+}
+
+function onTechnicalDirectionChange() {
+  if (!selectedTechnicalDirection.value) {
+    syncTemplateSelectors()
+    return
+  }
+  requestTemplateChange({
+    type: props.draft.type,
+    technicalDirection: selectedTechnicalDirection.value,
+    change: 'technical-direction',
+  })
 }
 
 function cancelTemplateSwitch() {
-  pendingTemplateType.value = null
-  selectedType.value = props.draft.type
+  pendingTemplateSelection.value = null
+  syncTemplateSelectors()
 }
 
 function confirmTemplateSwitch() {
-  const type = pendingTemplateType.value
-  pendingTemplateType.value = null
-  if (!type) return
-  selectedType.value = type
-  void loadTemplate(type, 'switch')
+  const selection = pendingTemplateSelection.value
+  pendingTemplateSelection.value = null
+  if (!selection) return
+  selectedType.value = selection.type
+  selectedTechnicalDirection.value = selection.technicalDirection ?? ''
+  void loadTemplate(selection)
 }
 
 function retryTemplate() {
-  const type = retryTemplateType.value ?? props.draft.type
+  const selection = retryTemplateSelection.value
   templateError.value = ''
-  selectedType.value = type
-  if (type === props.draft.type && !props.draft.content.trim()) {
-    void loadTemplate(type, 'initial')
-    return
-  }
-  requestTypeChange(type)
+  if (!selection) return
+  selectedType.value = selection.type
+  selectedTechnicalDirection.value = selection.technicalDirection ?? ''
+  void loadTemplate(selection)
 }
 
 async function wrapSelection(prefix: string, suffix = prefix, placeholder = '文本') {
@@ -395,8 +487,10 @@ async function prefixLines(prefix: string) {
           <div class="select-shell">
             <select
               id="technical-direction"
-              v-model="draft.technical_direction"
+              v-model="selectedTechnicalDirection"
               :class="{ invalid: errors.technical_direction }"
+              :aria-busy="templateLoading"
+              @change="onTechnicalDirectionChange"
             >
               <option value="" disabled>请选择技术知识方向</option>
               <option
@@ -461,7 +555,7 @@ async function prefixLines(prefix: string) {
         >
           <template v-if="templateLoading">
             <span class="template-spinner" aria-hidden="true" />
-            <span>正在加载 {{ selectedType }} 模板…</span>
+            <span>正在加载 {{ loadingTemplateLabel }} 模板…</span>
           </template>
           <template v-else-if="templateError">
             <span>{{ templateError }}</span>
@@ -471,7 +565,7 @@ async function prefixLines(prefix: string) {
           </template>
           <template v-else>
             <Info :size="16" />
-            <span>首次打开保持为空；切换知识类型时可载入对应填写模板。</span>
+            <span>首次打开保持为空；切换知识类型或 Layer 1 技术方向时可载入对应填写模板。</span>
           </template>
         </div>
         <div
@@ -508,9 +602,9 @@ async function prefixLines(prefix: string) {
       <p v-if="errors.content" class="field-error editor-error">{{ errors.content }}</p>
     </div>
     <ConfirmDialog
-      :open="pendingTemplateType !== null"
+      :open="pendingTemplateSelection !== null"
       title="替换知识正文？"
-      description="当前正文已经被修改。切换知识类型会使用新模板替换现有正文，此操作无法撤销。"
+      :description="templateDialogDescription"
       confirm-text="替换正文"
       danger
       @cancel="cancelTemplateSwitch"

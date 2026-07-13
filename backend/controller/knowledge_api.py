@@ -4,7 +4,7 @@ from typing import Dict, Optional
 
 from fastapi import APIRouter, Depends, Query, Request, status
 
-from backend.constant.enums import KnowledgeLayer, KnowledgeType
+from backend.constant.enums import KnowledgeLayer, KnowledgeType, TechnicalDirection
 from backend.domain.req import KnowledgeInput, ManualKnowledgeRequest
 from backend.domain.res import (
     CreateKnowledgeResponse,
@@ -45,10 +45,11 @@ def get_options(
 )
 def get_template(
     knowledge_type: KnowledgeType,
+    technical_direction: Optional[TechnicalDirection] = Query(default=None),
     member: Dict[str, str] = Depends(current_member),
     service: KnowledgeTemplateService = Depends(knowledge_template_service),
 ) -> Dict:
-    return service.get(knowledge_type, member)
+    return service.get(knowledge_type, member, technical_direction)
 
 
 @router.post("/preview", response_model=PreviewResponse)

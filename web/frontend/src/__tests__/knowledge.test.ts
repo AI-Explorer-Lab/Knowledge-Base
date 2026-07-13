@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { mockGetKnowledgeTemplate } from '@/api/mock'
 import { renderMarkdown } from '@/utils/markdown'
 import {
   buildKnowledgePayload,
@@ -123,6 +124,33 @@ describe('knowledge request shaping', () => {
     expect(shouldConfirmTemplateReplacement(originalTemplate, originalTemplate)).toBe(false)
     expect(shouldConfirmTemplateReplacement(`${originalTemplate}\n用户补充`, originalTemplate)).toBe(true)
     expect(shouldConfirmTemplateReplacement('从预览页返回的正文', null)).toBe(true)
+  })
+})
+
+describe('knowledge template composition', () => {
+  it('returns a base template without a Layer 1 direction', async () => {
+    const template = await mockGetKnowledgeTemplate('guideline')
+
+    expect(template.technical_direction).toBeNull()
+    expect(template.content).toContain('## 适用场景')
+    expect(template.content).not.toContain('## 模式摘要')
+    expect(template.content).not.toContain('## 反模式摘要')
+  })
+
+  it.each([
+    ['patterns', '## 模式摘要'],
+    ['anti-patterns', '## 反模式摘要'],
+  ] as const)('places the %s direction template before the selected base template', async (
+    technicalDirection,
+    directionHeading,
+  ) => {
+    const template = await mockGetKnowledgeTemplate('decision', technicalDirection)
+
+    expect(template.technical_direction).toBe(technicalDirection)
+    expect(template.content.indexOf(directionHeading)).toBe(0)
+    expect(template.content.indexOf('## 背景')).toBeGreaterThan(
+      template.content.indexOf(directionHeading),
+    )
   })
 })
 

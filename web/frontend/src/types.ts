@@ -46,6 +46,7 @@ export interface KnowledgeOptions {
 
 export interface KnowledgeTemplate {
   type: KnowledgeType
+  technical_direction: TechnicalDirection | null
   content: string
 }
 
