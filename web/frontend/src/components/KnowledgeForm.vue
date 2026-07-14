@@ -122,15 +122,12 @@ const loadingTemplateLabel = computed(() =>
 
 const templateDialogDescription = computed(() =>
   pendingTemplateSelection.value?.change === 'technical-direction'
-    ? '当前正文已经被修改。切换技术知识方向会使用新的方向补充模板和知识类型模板替换现有正文，此操作无法撤销。'
+    ? '当前正文已经被修改。切换技术立场标签会使用对应的补充模板和知识类型模板替换现有正文；不选择标签时只使用知识类型模板。此操作无法撤销。'
     : '当前正文已经被修改。切换知识类型会使用新模板替换现有正文，此操作无法撤销。',
 )
 
 const storageLocation = computed(() => {
   const base = formatLayer(selectedLayer.value)
-  if (selectedLayer.value === 'layer1' && props.draft.technical_direction) {
-    return `${base} / ${props.draft.technical_direction}`
-  }
   if (selectedLayer.value === 'layer2' && props.draft.domain) {
     return `${base} / ${props.draft.domain}`
   }
@@ -177,10 +174,10 @@ watch(
       if (props.draft.layer === 'layer1') {
         const allowedDirections = props.options?.technical_directions.map((item) => item.value) ?? []
         if (
-          !props.draft.technical_direction
-          || !allowedDirections.includes(props.draft.technical_direction)
+          props.draft.technical_direction
+          && !allowedDirections.includes(props.draft.technical_direction)
         ) {
-          props.draft.technical_direction = props.options?.technical_directions[0]?.value
+          delete props.draft.technical_direction
         }
       } else {
         delete props.draft.technical_direction
@@ -310,12 +307,12 @@ async function loadTemplate(selection: TemplateSelection) {
     }
 
     props.draft.type = selection.type
-    if (
-      props.draft.scope === 'team'
-      && props.draft.layer === 'layer1'
-      && selection.technicalDirection
-    ) {
-      props.draft.technical_direction = selection.technicalDirection
+    if (props.draft.scope === 'team' && props.draft.layer === 'layer1') {
+      if (selection.technicalDirection) {
+        props.draft.technical_direction = selection.technicalDirection
+      } else {
+        delete props.draft.technical_direction
+      }
     }
     props.draft.content = content
     selectedType.value = selection.type
@@ -370,13 +367,9 @@ function onTypeChange() {
 }
 
 function onTechnicalDirectionChange() {
-  if (!selectedTechnicalDirection.value) {
-    syncTemplateSelectors()
-    return
-  }
   requestTemplateChange({
     type: props.draft.type,
-    technicalDirection: selectedTechnicalDirection.value,
+    technicalDirection: selectedTechnicalDirection.value || null,
     change: 'technical-direction',
   })
 }
@@ -534,17 +527,16 @@ async function prefixLines(prefix: string) {
         </div>
       </div>
       <div v-if="draft.layer === 'layer1'" class="form-row">
-        <label for="technical-direction">技术知识方向 <em>*</em></label>
+        <label for="technical-direction">技术立场标签 <span class="optional-label">（可选）</span></label>
         <div class="form-control-stack">
           <div class="select-shell">
             <select
               id="technical-direction"
               v-model="selectedTechnicalDirection"
-              :class="{ invalid: errors.technical_direction }"
               :aria-busy="templateLoading"
               @change="onTechnicalDirectionChange"
             >
-              <option value="" disabled>请选择技术知识方向</option>
+              <option value="">不选择（中性知识）</option>
               <option
                 v-for="item in technicalDirections"
                 :key="item.value"
@@ -554,9 +546,8 @@ async function prefixLines(prefix: string) {
             <ChevronDown :size="17" />
           </div>
           <p class="field-help">
-            <Info :size="16" />正向模式记录可复用方案；反模式记录应避免的技术做法及替代建议。
+            <Info :size="16" />主要推荐正确方案时选择正向模式；主要警告错误做法时选择反模式；中性知识保持不选择。
           </p>
-          <p v-if="errors.technical_direction" class="field-error">{{ errors.technical_direction }}</p>
         </div>
       </div>
       <div v-if="draft.layer === 'layer2'" class="form-row">
@@ -617,7 +608,7 @@ async function prefixLines(prefix: string) {
           </template>
           <template v-else>
             <Info :size="16" />
-            <span>首次打开保持为空；切换知识类型或 Layer 1 技术方向时可载入对应填写模板。</span>
+            <span>首次打开保持为空；切换知识类型或 Layer 1 技术立场标签时可载入对应填写模板。</span>
           </template>
         </div>
         <div

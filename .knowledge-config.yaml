@@ -1,14 +1,12 @@
 version: 1
-
-# Stable member IDs are referenced by knowledge evidence and the audit log.
-# Do not delete historical members; set status to disabled instead.
 members:
-  - id: zhangsan
-    display_name: 张三
-    role: maintainer
-    status: active
-
-# Layer 2 business domains are controlled here. Layer 1 directions are the fixed
-# patterns/anti-patterns pair; all other type directories are derived by backend.
+- id: zhangsan
+  display_name: 张三
+  role: maintainer
+  status: active
+- id: fanwei
+  display_name: 范为
+  role: maintainer
+  status: active
 knowledge_options:
   business_domains: []

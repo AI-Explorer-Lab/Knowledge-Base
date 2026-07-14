@@ -367,6 +367,7 @@ def test_personal_preview_create_idempotent_retry_and_by_id_view(repo: Path):
         "scope": "personal",
         "owner_id": "lisi",
         "layer": "layer0p",
+        "technical_direction": None,
         "maturity": "draft",
         "created_at": result["knowledge"]["created_at"],
         "tags": ["api", "debug"],
@@ -423,12 +424,16 @@ def test_team_layer_domain_whitelist_and_actor_bound_token(repo: Path):
     assert denied.json()["detail"]["code"] == "preview_actor_mismatch"
 
 
-def test_technical_direction_is_required_only_for_layer1(repo: Path):
+def test_technical_direction_is_optional_and_only_allowed_for_layer1(repo: Path):
     client = client_for(repo, "lisi")
     missing = team_payload()
     missing.pop("technical_direction")
     response = client.post("/api/knowledge/preview", json=missing)
-    assert response.status_code == 422
+    assert response.status_code == 200, response.text
+    assert response.json()["preview"]["technical_direction"] is None
+    assert response.json()["preview"]["relative_path"].startswith(
+        "tech-wiki/guidelines/"
+    )
 
     misplaced = client.post(
         "/api/knowledge/preview",
@@ -437,28 +442,51 @@ def test_technical_direction_is_required_only_for_layer1(repo: Path):
     assert misplaced.status_code == 422
 
 
-@pytest.mark.parametrize(
-    ("technical_direction", "expected_id", "directory"),
-    [
-        ("patterns", "TK-PAT-001", "patterns"),
-        ("anti-patterns", "TK-AP-001", "anti-patterns"),
-    ],
-)
-def test_layer1_direction_controls_path_and_id(
+def test_neutral_layer1_knowledge_can_complete_preview_and_create(repo: Path):
+    client = client_for(repo, "lisi")
+    payload = team_payload()
+    payload.pop("technical_direction")
+
+    preview = client.post("/api/knowledge/preview", json=payload)
+    assert preview.status_code == 200, preview.text
+    created = client.post(
+        "/api/knowledge/manual",
+        json={**payload, "preview_token": preview.json()["preview_token"]},
+    )
+    assert created.status_code == 201, created.text
+    knowledge = created.json()["knowledge"]
+    assert knowledge["technical_direction"] is None
+    assert knowledge["id"] == "TK-GDL-001"
+    assert knowledge["relative_path"].startswith("tech-wiki/guidelines/")
+    metadata, _body = governance.read_entry(repo / knowledge["relative_path"])
+    assert "technical_direction" not in metadata
+
+
+@pytest.mark.parametrize("technical_direction", [None, "patterns", "anti-patterns"])
+def test_layer1_direction_is_optional_metadata_not_path_or_id(
     repo: Path,
-    technical_direction: str,
-    expected_id: str,
-    directory: str,
+    technical_direction: str | None,
 ):
+    payload = team_payload()
+    if technical_direction is None:
+        payload.pop("technical_direction")
+    else:
+        payload["technical_direction"] = technical_direction
     response = client_for(repo, "lisi").post(
         "/api/knowledge/preview",
-        json=team_payload(technical_direction=technical_direction),
+        json=payload,
     )
     assert response.status_code == 200, response.text
-    assert response.json()["preview"]["id"] == expected_id
+    assert response.json()["preview"]["id"] == "TK-GDL-001"
     assert response.json()["preview"]["relative_path"].startswith(
-        f"tech-wiki/{directory}/"
+        "tech-wiki/guidelines/"
     )
+    assert response.json()["preview"]["technical_direction"] == technical_direction
+    metadata = response.json()["preview"]["metadata"]
+    if technical_direction is None:
+        assert "technical_direction" not in metadata
+    else:
+        assert metadata["technical_direction"] == technical_direction
 
 
 @pytest.mark.parametrize(
@@ -571,8 +599,8 @@ def test_only_maintainer_can_create_safe_business_domain(repo: Path):
     [
         (
             team_payload(layer="layer1"),
-            "TK-PAT-001",
-            "tech-wiki/patterns/",
+            "TK-GDL-001",
+            "tech-wiki/guidelines/",
             "tech-wiki/catalog.md",
             "Layer 1",
         ),
@@ -613,8 +641,15 @@ def test_team_manual_commit_updates_entry_catalogs_and_log(
     assert knowledge["id"] == expected_id
     assert knowledge["scope"] == "team"
     assert knowledge["owner_id"] is None
+    assert knowledge["technical_direction"] == payload.get("technical_direction")
     assert knowledge["relative_path"].startswith(path_prefix)
-    assert (repo / knowledge["relative_path"]).is_file()
+    knowledge_path = repo / knowledge["relative_path"]
+    assert knowledge_path.is_file()
+    metadata, _body = governance.read_entry(knowledge_path)
+    if payload.get("technical_direction") is None:
+        assert "technical_direction" not in metadata
+    else:
+        assert metadata["technical_direction"] == payload["technical_direction"]
     assert knowledge["id"] in (repo / layer_catalog).read_text(encoding="utf-8")
     assert f"| {layer_summary} | 1 | 0 |" in (
         repo / "knowledge-catalog.md"
