@@ -9,4 +9,5 @@
 |---|---|---|---|---|---|---|---|
 | `PK-ZS-GDL-001` | 调试 API 前先检查 8000 端口 | `guideline` | `draft` | `personal` | `zhangsan` | debug, api, port | `personal-prefernece/zhangsan/knowledge/guidelines/PK-ZS-GDL-001.md` |
 | `PK-ZS-GDL-002` | AI生成前端网页，文末不要用句号 | `guideline` | `draft` | `personal` | `zhangsan` | frontend, web, AI, design | `personal-prefernece/zhangsan/knowledge/guidelines/PK-ZS-GDL-002.md` |
+| `PK-ZS-GDL-003` | 设计前端时要铺开，不能留太多空白 | `guideline` | `draft` | `personal` | `zhangsan` | frontend, AI, web, design | `personal-prefernece/zhangsan/knowledge/guidelines/PK-ZS-GDL-003.md` |
 <!-- knowledge-index:end -->

@@ -768,6 +768,21 @@ select.invalid,
   background: #fff;
 }
 
+body.editor-fullscreen-open {
+  overflow: hidden;
+}
+
+.editor-shell.editor-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  border-radius: 0;
+  box-shadow: 0 24px 80px rgba(9, 20, 38, 0.2);
+}
+
 .editor-shell.template-is-loading .editor-toolbar {
   pointer-events: none;
   opacity: 0.55;
@@ -813,7 +828,8 @@ select.invalid,
 .editor-shell textarea {
   display: block;
   min-height: 235px;
-  resize: vertical;
+  overflow-y: hidden;
+  resize: none;
   border: 0;
   border-radius: 0;
   padding: 12px 14px;
@@ -822,6 +838,13 @@ select.invalid,
   font-size: 13px;
   line-height: 1.65;
   box-shadow: none;
+}
+
+.editor-shell.editor-fullscreen textarea {
+  height: auto !important;
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
 }
 
 .editor-shell textarea:disabled {
@@ -1506,7 +1529,6 @@ select.invalid,
 }
 
 .permission-page {
-  max-width: 1260px;
   padding-top: 38px;
   padding-left: 38px;
 }
@@ -1528,7 +1550,6 @@ select.invalid,
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 20px;
-  max-width: 786px;
 }
 
 .stat-card {
@@ -1575,7 +1596,6 @@ select.invalid,
 }
 
 .member-panel {
-  max-width: 786px;
   min-height: 510px;
   margin-top: 24px;
   padding: 26px;
@@ -2873,14 +2893,6 @@ select.invalid,
     grid-template-columns: 1fr 1fr;
   }
 
-  .permission-page {
-    max-width: none;
-  }
-
-  .stats-grid,
-  .member-panel {
-    max-width: none;
-  }
 }
 
 @media (max-width: 760px) {
