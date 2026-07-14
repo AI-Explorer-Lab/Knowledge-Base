@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   Bold,
   CheckSquare,
@@ -14,6 +14,7 @@ import {
   ListOrdered,
   LockKeyhole,
   Maximize2,
+  Minimize2,
   Quote,
   RefreshCw,
   Strikethrough,
@@ -56,6 +57,7 @@ interface TemplateSelection {
 }
 
 const editor = ref<HTMLTextAreaElement | null>(null)
+const editorFullscreen = ref(false)
 const tagField = ref<HTMLInputElement | null>(null)
 const tagInput = ref('')
 const selectedType = ref<KnowledgeType>(props.draft.type)
@@ -71,18 +73,33 @@ const retryTemplateSelection = ref<TemplateSelection | null>(null)
 const templateCache = new Map<string, string>()
 let templateRequestId = 0
 
+onMounted(() => {
+  window.addEventListener('keydown', onEditorKeydown)
+  void nextTick(resizeEditor)
+})
+
 onBeforeUnmount(() => {
   templateRequestId += 1
   templateLoading.value = false
+  window.removeEventListener('keydown', onEditorKeydown)
+  document.body.classList.remove('editor-fullscreen-open')
 })
 
 const knowledgeTypes = computed(() => props.options?.knowledge_types ?? [
-  { value: 'model' as const, label: 'model' },
-  { value: 'decision' as const, label: 'decision' },
-  { value: 'guideline' as const, label: 'guideline' },
-  { value: 'pitfall' as const, label: 'pitfall' },
-  { value: 'process' as const, label: 'process' },
+  { value: 'model' as const, label: '模型' },
+  { value: 'decision' as const, label: '决策' },
+  { value: 'guideline' as const, label: '指南' },
+  { value: 'pitfall' as const, label: '陷阱' },
+  { value: 'process' as const, label: '流程' },
 ])
+
+const knowledgeTypeUsage: Record<KnowledgeType, string> = {
+  model: '需要说明实体、字段、数据结构或关系时',
+  decision: '需要记录技术选型、架构决定及理由时',
+  guideline: '需要沉淀推荐做法、禁止做法或检查标准时',
+  pitfall: '需要记录风险、故障现象或排查经验时',
+  process: '需要说明业务流程、状态流转或操作步骤时',
+}
 
 const layers = computed(() => props.options?.layers ?? [])
 const technicalDirections = computed(() => props.options?.technical_directions ?? [])
@@ -121,6 +138,20 @@ const storageLocation = computed(() => {
 })
 
 watch(templateLoading, (loading) => emit('template-loading', loading))
+
+watch(
+  () => props.draft.content,
+  () => void nextTick(resizeEditor),
+  { flush: 'post' },
+)
+
+watch(editorFullscreen, (fullscreen) => {
+  document.body.classList.toggle('editor-fullscreen-open', fullscreen)
+  void nextTick(() => {
+    resizeEditor()
+    editor.value?.focus()
+  })
+})
 
 watch(
   () => [props.draft.type, props.draft.technical_direction] as const,
@@ -195,6 +226,25 @@ function removeSource(index: number) {
     return
   }
   props.draft.source_references.splice(index, 1)
+}
+
+function resizeEditor() {
+  const input = editor.value
+  if (!input) return
+  if (editorFullscreen.value) {
+    input.style.height = ''
+    return
+  }
+  input.style.height = 'auto'
+  input.style.height = `${input.scrollHeight}px`
+}
+
+function toggleEditorFullscreen() {
+  editorFullscreen.value = !editorFullscreen.value
+}
+
+function onEditorKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && editorFullscreen.value) editorFullscreen.value = false
 }
 
 function templateSelectionKey(
@@ -429,7 +479,9 @@ async function prefixLines(prefix: string) {
       <label for="type">知识类型 <em>*</em></label>
       <div class="select-shell">
         <select id="type" v-model="selectedType" :aria-busy="templateLoading" @change="onTypeChange">
-          <option v-for="item in knowledgeTypes" :key="item.value" :value="item.value">{{ item.label }}</option>
+          <option v-for="item in knowledgeTypes" :key="item.value" :value="item.value">
+            {{ item.label }} — {{ knowledgeTypeUsage[item.value] }}
+          </option>
         </select>
         <ChevronDown :size="17" />
       </div>
@@ -570,7 +622,11 @@ async function prefixLines(prefix: string) {
         </div>
         <div
           class="editor-shell"
-          :class="{ invalid: errors.content, 'template-is-loading': templateLoading }"
+          :class="{
+            invalid: errors.content,
+            'template-is-loading': templateLoading,
+            'editor-fullscreen': editorFullscreen,
+          }"
         >
           <div class="editor-toolbar" aria-label="Markdown 编辑工具">
             <button type="button" title="二级标题" @click="prefixLines('## ')"><Heading2 :size="18" /></button>
@@ -587,7 +643,16 @@ async function prefixLines(prefix: string) {
             <button type="button" title="表格" @click="wrapSelection('| 列 1 | 列 2 |\n| --- | --- |\n| ', ' | 内容 |', '内容')"><Table2 :size="17" /></button>
             <span class="toolbar-spacer" />
             <button type="button" title="预览将在下一步显示"><Eye :size="18" /></button>
-            <button type="button" title="扩大编辑区" @click="editor?.focus()"><Maximize2 :size="17" /></button>
+            <button
+              type="button"
+              :title="editorFullscreen ? '退出全屏编辑' : '全屏编辑'"
+              :aria-label="editorFullscreen ? '退出全屏编辑' : '全屏编辑'"
+              :aria-pressed="editorFullscreen"
+              @click="toggleEditorFullscreen"
+            >
+              <Minimize2 v-if="editorFullscreen" :size="17" />
+              <Maximize2 v-else :size="17" />
+            </button>
           </div>
           <textarea
             id="knowledge-content"
