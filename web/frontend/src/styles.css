@@ -831,25 +831,50 @@ body.editor-fullscreen-open {
   flex: 1;
 }
 
+.editor-textarea-grow {
+  display: grid;
+}
+
+.editor-textarea-grow::after,
+.editor-shell textarea {
+  grid-area: 1 / 1 / 2 / 2;
+  min-height: 235px;
+  padding: 12px 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  line-height: 1.65;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.editor-textarea-grow::after {
+  box-sizing: border-box;
+  visibility: hidden;
+  content: attr(data-replicated-value) " ";
+}
+
 .editor-shell textarea {
   display: block;
-  min-height: 235px;
   overflow-y: hidden;
   resize: none;
   border: 0;
   border-radius: 0;
-  padding: 12px 14px;
   color: #2a3445;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 13px;
-  line-height: 1.65;
   box-shadow: none;
 }
 
-.editor-shell.editor-fullscreen textarea {
-  height: auto !important;
+.editor-shell.editor-fullscreen .editor-textarea-grow {
   min-height: 0;
   flex: 1;
+}
+
+.editor-shell.editor-fullscreen .editor-textarea-grow::after {
+  display: none;
+}
+
+.editor-shell.editor-fullscreen textarea {
+  height: 100%;
+  min-height: 0;
   overflow-y: auto;
 }
 

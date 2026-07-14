@@ -19,5 +19,6 @@
 | `TK-DEC-001` | 后端架构设计模板 | `decision` | `draft` | `team` | `-` | backend, architecture, design, development | `tech-wiki/decisions/TK-DEC-001.md` |
 | `TK-DEC-002` | 开发时使用python的版本为3.12 | `decision` | `draft` | `team` | `-` | python, development, backend | `tech-wiki/decisions/TK-DEC-002.md` |
 | `TK-DEC-003` | 前端开发语言用vue | `decision` | `draft` | `team` | `-` | fronten, vue, development | `tech-wiki/decisions/TK-DEC-003.md` |
+| `TK-GDL-002` | 隐藏镜像层方案 | `guideline` | `draft` | `team` | `-` | frontend, design, ai, web | `tech-wiki/guidelines/TK-GDL-002.md` |
 | `TK-GDL-001` | 知识治理脚本只使用 Python 标准库 | `guideline` | `draft` | `team` | `-` | python, governance, dependency | `tech-wiki/patterns/TK-GDL-001.md` |
 <!-- knowledge-index:end -->
