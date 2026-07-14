@@ -34,6 +34,7 @@ const seededFiles: KnowledgeFile[] = [
     scope: 'personal',
     owner_id: 'zhangsan',
     layer: 'layer0p',
+    technical_direction: null,
     maturity: 'draft',
     created_at: '2026-07-12T10:20:00Z',
     tags: ['debug', 'api'],
@@ -48,6 +49,7 @@ const seededFiles: KnowledgeFile[] = [
     scope: 'team',
     owner_id: null,
     layer: 'layer1',
+    technical_direction: 'patterns',
     maturity: 'verified',
     created_at: '2026-07-11T08:40:00Z',
     tags: ['governance', 'team'],
@@ -62,6 +64,7 @@ const seededFiles: KnowledgeFile[] = [
     scope: 'team',
     owner_id: null,
     layer: 'layer3',
+    technical_direction: null,
     maturity: 'proven',
     created_at: '2026-07-09T03:15:00Z',
     tags: ['project', 'architecture'],
@@ -275,22 +278,13 @@ const typeCategories = {
   process: 'processes',
 } as const
 
-const technicalDirectionCodes = {
-  patterns: 'PAT',
-  'anti-patterns': 'AP',
-} as const
-
 function makePreview(draft: KnowledgeDraft): PreviewResponse {
   const personal = draft.scope === 'personal'
   const layer = personal ? 'layer0p' : (draft.layer ?? 'layer1')
   const prefix = personal ? 'PK-ZS' : layer === 'layer2' ? 'BK' : layer === 'layer3' ? 'PJ' : 'TK'
-  const code = layer === 'layer1'
-    ? technicalDirectionCodes[draft.technical_direction ?? 'patterns']
-    : typeCodes[draft.type]
+  const code = typeCodes[draft.type]
   const id = `${prefix}-${code}-001`
-  const category = layer === 'layer1'
-    ? (draft.technical_direction ?? 'patterns')
-    : typeCategories[draft.type]
+  const category = typeCategories[draft.type]
   const base = personal
     ? 'personal-prefernece/zhangsan/knowledge'
     : layer === 'layer1'
@@ -314,6 +308,7 @@ function makePreview(draft: KnowledgeDraft): PreviewResponse {
       scope: draft.scope,
       owner_id: personal ? 'zhangsan' : null,
       layer,
+      technical_direction: layer === 'layer1' ? (draft.technical_direction ?? null) : null,
       maturity: 'draft',
       created_at: createdAt,
       relative_path: relativePath,
@@ -327,6 +322,9 @@ function makePreview(draft: KnowledgeDraft): PreviewResponse {
         scope: draft.scope,
         ...(personal ? { owner_id: 'zhangsan' } : {}),
         layer,
+        ...(layer === 'layer1' && draft.technical_direction
+          ? { technical_direction: draft.technical_direction }
+          : {}),
         maturity: 'draft',
         created_at: createdAt,
         evidence: { contributors: ['zhangsan'], references: [], validations: [] },
@@ -429,6 +427,7 @@ export async function mockCreateKnowledge(
     scope: response.preview.scope,
     owner_id: response.preview.owner_id,
     layer: response.preview.layer,
+    technical_direction: response.preview.technical_direction,
     maturity: response.preview.maturity,
     created_at: response.preview.created_at,
     tags: response.preview.tags,
@@ -444,6 +443,7 @@ export async function mockCreateKnowledge(
       scope: response.preview.scope,
       owner_id: response.preview.owner_id,
       layer: response.preview.layer,
+      technical_direction: response.preview.technical_direction,
       maturity: response.preview.maturity,
       created_at: response.preview.created_at,
       tags: response.preview.tags,
@@ -489,6 +489,7 @@ export async function mockListKnowledge(
       knowledge.id,
       knowledge.title,
       knowledge.type,
+      knowledge.technical_direction ?? '',
       knowledge.content,
       ...knowledge.tags,
     ].join(' ').toLowerCase().includes(normalizedQuery))

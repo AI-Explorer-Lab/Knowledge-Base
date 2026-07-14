@@ -191,6 +191,26 @@ def metadata_scope(metadata: Dict[str, Any]) -> Optional[str]:
     return scope
 
 
+def entry_technical_direction(
+    repo: Path,
+    path: Path,
+    metadata: Dict[str, Any],
+) -> Optional[str]:
+    """Return the optional Layer 1 tag, including legacy directory inference."""
+
+    direction = metadata.get("technical_direction")
+    if direction in TECHNICAL_DIRECTIONS:
+        return str(direction)
+    if metadata.get("layer") != "layer1":
+        return None
+    try:
+        _layer, _root, _archived, active_relative = layer_context(repo, path)
+    except (GovernanceError, ValueError):
+        return None
+    category = active_relative.parts[0] if active_relative.parts else None
+    return category if category in TECHNICAL_DIRECTIONS else None
+
+
 def effective_references(metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
     evidence = metadata.get("evidence", {})
     references = evidence.get("references", []) if isinstance(evidence, dict) else []
@@ -223,6 +243,15 @@ def validate_metadata(metadata: Dict[str, Any], body: str) -> List[str]:
         errors.append(f"maturity 必须是以下值之一：{', '.join(sorted(MATURITIES))}")
     if metadata.get("conflict_status") not in CONFLICT_STATES:
         errors.append(f"conflict_status 必须是以下值之一：{', '.join(sorted(CONFLICT_STATES))}")
+
+    technical_direction = metadata.get("technical_direction")
+    if "technical_direction" in metadata:
+        if technical_direction not in TECHNICAL_DIRECTIONS:
+            errors.append(
+                "technical_direction 必须是 patterns 或 anti-patterns"
+            )
+        elif metadata.get("layer") != "layer1":
+            errors.append("technical_direction 只能用于 Layer 1 知识")
 
     scope = metadata_scope(metadata)
     if scope not in SCOPES:
@@ -394,8 +423,16 @@ def validate_path_metadata(repo: Path, path: Path, metadata: Dict[str, Any]) -> 
         errors.append("Layer 1、Layer 2、Layer 3 知识必须使用 scope=team")
     actual_category = active_relative.parts[0] if active_relative.parts else None
     if actual_layer == "layer1":
-        if actual_category not in TECHNICAL_DIRECTIONS:
-            errors.append("Layer 1 技术知识必须位于 patterns/ 或 anti-patterns/ 目录")
+        expected_category = TYPE_CATEGORIES.get(metadata.get("type"))
+        if actual_category in TECHNICAL_DIRECTIONS:
+            direction = metadata.get("technical_direction")
+            if direction is not None and direction != actual_category:
+                errors.append("旧版 Layer 1 目录必须与 technical_direction 一致")
+        elif expected_category and actual_category != expected_category:
+            errors.append(
+                f"Layer 1 知识类型 {metadata.get('type')} 必须位于 "
+                f"{expected_category}/；旧知识可继续位于 patterns/ 或 anti-patterns/"
+            )
     else:
         expected_category = TYPE_CATEGORIES.get(metadata.get("type"))
         if expected_category and actual_category != expected_category:
@@ -557,6 +594,7 @@ def build_knowledge_metadata(
     actor: str,
     sources: Sequence[str],
     tags: Optional[Sequence[str]] = None,
+    technical_direction: Optional[str] = None,
     owner_id: Optional[str] = None,
     created_at: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -592,6 +630,8 @@ def build_knowledge_metadata(
     }
     if owner_id:
         metadata["owner_id"] = owner_id
+    if technical_direction is not None:
+        metadata["technical_direction"] = technical_direction
     return metadata
 
 
@@ -609,6 +649,7 @@ def create_knowledge_entry(
     actor: str,
     role: str,
     tags: Optional[Sequence[str]] = None,
+    technical_direction: Optional[str] = None,
     owner_id: Optional[str] = None,
     session: str = "manual",
     created_at: Optional[str] = None,
@@ -642,6 +683,7 @@ def create_knowledge_entry(
         actor=actor,
         sources=sources,
         tags=tags,
+        technical_direction=technical_direction,
         owner_id=owner_id,
         created_at=created_at,
     )
@@ -892,6 +934,7 @@ def cmd_create(args: argparse.Namespace) -> None:
         actor=args.actor,
         role=args.role,
         tags=args.tag,
+        technical_direction=args.technical_direction,
         owner_id=args.owner_id,
         session=args.session,
     )
@@ -1445,6 +1488,11 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--owner-id", help="个人知识所有者；scope=personal 时必填")
     create.add_argument("--source", required=True, action="append")
     create.add_argument("--tag", action="append")
+    create.add_argument(
+        "--technical-direction",
+        choices=sorted(TECHNICAL_DIRECTIONS),
+        help="可选的 Layer 1 技术立场标签",
+    )
     create.add_argument("--content", required=True)
     add_actor_options(create, ("contributor", "maintainer"))
     create.set_defaults(func=cmd_create)

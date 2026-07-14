@@ -14,11 +14,6 @@ TYPE_CATEGORIES = {
     "process": "processes",
 }
 
-TECHNICAL_DIRECTION_CODES = {
-    "patterns": "PAT",
-    "anti-patterns": "AP",
-}
-
 LAYER_PREFIXES = {"layer1": "TK", "layer2": "BK", "layer3": "PJ"}
 
 IDENTITY_ACTOR_HEADER = "x-knowledge-actor"

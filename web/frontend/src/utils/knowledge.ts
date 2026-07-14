@@ -48,9 +48,6 @@ export function validateKnowledgeDraft(draft: KnowledgeDraft): KnowledgeErrors {
   if (!draft.content.trim()) errors.content = '请输入知识正文'
   if (draft.scope === 'team') {
     if (!draft.layer) errors.layer = '请选择团队知识层级'
-    if (draft.layer === 'layer1' && !draft.technical_direction) {
-      errors.technical_direction = '请选择技术知识方向'
-    }
     if (draft.layer === 'layer2' && !draft.domain?.trim()) errors.domain = 'Layer 2 知识必须选择业务领域'
   }
   return errors

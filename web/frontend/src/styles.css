@@ -476,6 +476,12 @@ textarea:focus-visible {
   font-style: normal;
 }
 
+.form-row .optional-label {
+  color: #98a2b3;
+  font-size: 12px;
+  font-weight: 400;
+}
+
 .form-control-stack {
   min-width: 0;
 }

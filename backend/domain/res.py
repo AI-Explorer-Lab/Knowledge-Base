@@ -91,6 +91,7 @@ class CreatedKnowledge(ResponseModel):
     scope: KnowledgeScope
     owner_id: Optional[str]
     layer: str
+    technical_direction: Optional[TechnicalDirection]
     maturity: Literal["draft"]
     created_at: str
     tags: List[str]
@@ -131,6 +132,7 @@ class KnowledgeListItem(ResponseModel):
     scope: KnowledgeScope
     owner_id: Optional[str]
     layer: KnowledgeLayer
+    technical_direction: Optional[TechnicalDirection]
     maturity: KnowledgeMaturity
     created_at: str
     tags: List[str]

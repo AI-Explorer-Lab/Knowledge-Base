@@ -8,7 +8,6 @@ from tools import knowledge_governance as governance
 from backend.constant.enums import KnowledgeLayer
 from backend.constant.values import (
     LAYER_PREFIXES,
-    TECHNICAL_DIRECTION_CODES,
     TYPE_CATEGORIES,
     TYPE_CODES,
 )
@@ -73,11 +72,7 @@ class KnowledgeService:
             base = f"PK-{self._member_segment(actor)}-{code}"
         else:
             assert request.layer is not None
-            if request.layer == "layer1":
-                assert request.technical_direction is not None
-                code = TECHNICAL_DIRECTION_CODES[request.technical_direction]
-            else:
-                code = TYPE_CODES[request.type]
+            code = TYPE_CODES[request.type]
             base = f"{LAYER_PREFIXES[request.layer]}-{code}"
         occupied = self.preview_nonces.reserved_knowledge_ids()
         for path in governance.iter_candidate_files(self.repo):
@@ -106,8 +101,7 @@ class KnowledgeService:
             category = TYPE_CATEGORIES[request.type]
             path = self.repo / "personal-prefernece" / actor / "knowledge" / category / filename
         elif layer == "layer1":
-            assert request.technical_direction is not None
-            category = request.technical_direction
+            category = TYPE_CATEGORIES[request.type]
             path = self.repo / "tech-wiki" / category / filename
         elif layer == "layer2":
             category = TYPE_CATEGORIES[request.type]
@@ -279,6 +273,7 @@ class KnowledgeService:
                 actor=current_actor["id"],
                 sources=request.source_references,
                 tags=request.tags,
+                technical_direction=request.technical_direction,
                 owner_id=owner_id,
                 created_at=created_at,
             )
@@ -311,6 +306,7 @@ class KnowledgeService:
         return {
             "preview": {
                 **metadata,
+                "technical_direction": request.technical_direction,
                 "owner_id": owner_id,
                 "relative_path": relative_path,
                 "metadata": metadata,
@@ -362,6 +358,7 @@ class KnowledgeService:
                 actor=current_actor["id"],
                 sources=request.source_references,
                 tags=request.tags,
+                technical_direction=request.technical_direction,
                 owner_id=owner_id,
                 created_at=created_at,
             )
@@ -419,6 +416,7 @@ class KnowledgeService:
                     actor=current_actor["id"],
                     role=current_actor["role"],
                     tags=request.tags,
+                    technical_direction=request.technical_direction,
                     owner_id=owner_id,
                     session="web:manual",
                     created_at=created_at,
@@ -445,6 +443,11 @@ class KnowledgeService:
             self.repo,
             self.repo / relative_path,
         )
+        technical_direction = governance.entry_technical_direction(
+            self.repo,
+            self.repo / relative_path,
+            metadata,
+        )
         return {
             "knowledge": {
                 "id": metadata["id"],
@@ -453,6 +456,7 @@ class KnowledgeService:
                 "scope": governance.metadata_scope(metadata),
                 "owner_id": metadata.get("owner_id"),
                 "layer": metadata["layer"],
+                "technical_direction": technical_direction,
                 "maturity": metadata["maturity"],
                 "created_at": metadata["created_at"],
                 "tags": metadata.get("tags", []),
@@ -562,11 +566,17 @@ class KnowledgeService:
 
             content = self._content_without_title(metadata, body)
             tags = metadata.get("tags", [])
+            technical_direction = governance.entry_technical_direction(
+                self.repo,
+                path,
+                metadata,
+            )
             searchable = " ".join(
                 [
                     str(metadata["id"]),
                     str(metadata["title"]),
                     str(metadata["type"]),
+                    str(technical_direction or ""),
                     str(metadata.get("owner_id") or ""),
                     " ".join(str(tag) for tag in tags),
                     content,
@@ -586,6 +596,7 @@ class KnowledgeService:
                     "scope": governance.metadata_scope(metadata),
                     "owner_id": metadata.get("owner_id"),
                     "layer": entry_layer,
+                    "technical_direction": technical_direction,
                     "maturity": metadata["maturity"],
                     "created_at": metadata["created_at"],
                     "tags": tags,
@@ -622,6 +633,11 @@ class KnowledgeService:
         except governance.GovernanceError as exc:
             raise ApiError(409, "invalid_knowledge_entry", str(exc)) from exc
         content = self._content_without_title(metadata, body)
+        technical_direction = governance.entry_technical_direction(
+            self.repo,
+            path,
+            metadata,
+        )
         return {
             "knowledge": {
                 "id": metadata["id"],
@@ -630,6 +646,7 @@ class KnowledgeService:
                 "scope": governance.metadata_scope(metadata),
                 "owner_id": metadata.get("owner_id"),
                 "layer": metadata["layer"],
+                "technical_direction": technical_direction,
                 "maturity": metadata["maturity"],
                 "created_at": metadata["created_at"],
                 "tags": metadata.get("tags", []),

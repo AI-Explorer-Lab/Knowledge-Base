@@ -79,10 +79,8 @@ class KnowledgeInput(StrictModel):
         else:
             if self.layer is None:
                 raise ValueError("团队知识必须选择层级")
-            if self.layer == "layer1" and self.technical_direction is None:
-                raise ValueError("Layer 1 知识必须选择技术知识方向")
             if self.layer != "layer1" and self.technical_direction is not None:
-                raise ValueError("只有 Layer 1 知识可以指定技术知识方向")
+                raise ValueError("只有 Layer 1 知识可以指定技术立场标签")
             if self.layer == "layer2" and self.domain is None:
                 raise ValueError("Layer 2 知识必须选择业务领域")
             if self.layer != "layer2" and self.domain is not None:

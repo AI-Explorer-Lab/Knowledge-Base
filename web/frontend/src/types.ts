@@ -71,6 +71,7 @@ export interface KnowledgePreview {
   scope: KnowledgeScope
   owner_id: string | null
   layer: KnowledgeLayer
+  technical_direction: TechnicalDirection | null
   maturity: 'draft'
   created_at: string
   relative_path: string
@@ -99,6 +100,7 @@ export interface CreatedKnowledge {
   scope: KnowledgeScope
   owner_id: string | null
   layer: KnowledgeLayer
+  technical_direction: TechnicalDirection | null
   maturity: KnowledgeMaturity
   created_at: string
   tags: string[]

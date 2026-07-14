@@ -98,17 +98,15 @@ describe('knowledge request shaping', () => {
     expect(validateKnowledgeDraft(draft).domain).toBeUndefined()
   })
 
-  it('requires a technical direction only for Layer 1 team knowledge', () => {
+  it('keeps the Layer 1 technical direction optional', () => {
     const draft = initialKnowledgeDraft()
     Object.assign(draft, { scope: 'team', layer: 'layer1' })
-    expect(validateKnowledgeDraft(draft).technical_direction).toBeTruthy()
+    expect(validateKnowledgeDraft(draft).technical_direction).toBeUndefined()
+    expect(buildKnowledgePayload(draft)).not.toHaveProperty('technical_direction')
 
     draft.technical_direction = 'patterns'
     expect(validateKnowledgeDraft(draft).technical_direction).toBeUndefined()
-
-    draft.layer = 'layer3'
-    delete draft.technical_direction
-    expect(validateKnowledgeDraft(draft).technical_direction).toBeUndefined()
+    expect(buildKnowledgePayload(draft).technical_direction).toBe('patterns')
   })
 
   it('accepts any nonempty Markdown body as required by the plan', () => {
