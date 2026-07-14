@@ -6,7 +6,12 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from tools import knowledge_governance as governance
 from backend.constant.enums import KnowledgeLayer
-from backend.constant.values import LAYER_PREFIXES, TYPE_CATEGORIES, TYPE_CODES
+from backend.constant.values import (
+    LAYER_PREFIXES,
+    TECHNICAL_DIRECTION_CODES,
+    TYPE_CATEGORIES,
+    TYPE_CODES,
+)
 from backend.domain.models import KnowledgeTarget
 from backend.domain.req import KnowledgeInput, ManualKnowledgeRequest
 from backend.exceptions.business_exception import ApiError
@@ -63,11 +68,16 @@ class KnowledgeService:
         return value.upper() or "MB"
 
     def _new_id(self, request: KnowledgeInput, actor: str) -> str:
-        code = TYPE_CODES[request.type]
         if request.scope == "personal":
+            code = TYPE_CODES[request.type]
             base = f"PK-{self._member_segment(actor)}-{code}"
         else:
             assert request.layer is not None
+            if request.layer == "layer1":
+                assert request.technical_direction is not None
+                code = TECHNICAL_DIRECTION_CODES[request.technical_direction]
+            else:
+                code = TYPE_CODES[request.type]
             base = f"{LAYER_PREFIXES[request.layer]}-{code}"
         occupied = self.preview_nonces.reserved_knowledge_ids()
         for path in governance.iter_candidate_files(self.repo):
@@ -87,29 +97,23 @@ class KnowledgeService:
         if request.scope == "personal":
             layer = "layer0p"
             owner_id: Optional[str] = actor
-            category = TYPE_CATEGORIES[request.type]
         else:
             assert request.layer is not None
-            assert request.category is not None
             layer = request.layer
             owner_id = None
-            category = request.category
-        categories = options["categories"][layer]
-        if category not in categories:
-            raise ApiError(
-                422,
-                "invalid_category",
-                "分类不在后端受控选项中",
-                field_errors={"category": "请从有效分类中选择"},
-            )
         filename = f"{knowledge_id}.md"
         if layer == "layer0p":
+            category = TYPE_CATEGORIES[request.type]
             path = self.repo / "personal-prefernece" / actor / "knowledge" / category / filename
         elif layer == "layer1":
+            assert request.technical_direction is not None
+            category = request.technical_direction
             path = self.repo / "tech-wiki" / category / filename
         elif layer == "layer2":
+            category = TYPE_CATEGORIES[request.type]
             assert request.domain is not None
-            if request.domain not in options["business_domains"]:
+            domain_ids = {item["id"] for item in options["business_domains"]}
+            if request.domain not in domain_ids:
                 raise ApiError(
                     422,
                     "invalid_domain",
@@ -118,6 +122,7 @@ class KnowledgeService:
                 )
             path = self.repo / "biz-wiki" / request.domain / category / filename
         else:
+            category = TYPE_CATEGORIES[request.type]
             path = self.repo / "docs" / "knowledge" / category / filename
         resolved = governance.resolve_inside(self.repo, str(path))
         actual_layer, _, archived, _ = governance.layer_context(self.repo, resolved)
@@ -240,14 +245,13 @@ class KnowledgeService:
             ],
             "layers": [
                 {"value": "layer1", "label": "Layer 1 技术知识"},
-                *(
-                    [{"value": "layer2", "label": "Layer 2 业务知识"}]
-                    if configured["business_domains"]
-                    else []
-                ),
+                {"value": "layer2", "label": "Layer 2 业务知识"},
                 {"value": "layer3", "label": "Layer 3 项目知识"},
             ],
-            "categories": configured["categories"],
+            "technical_directions": [
+                {"value": "patterns", "label": "正向模式"},
+                {"value": "anti-patterns", "label": "反模式"},
+            ],
             "business_domains": configured["business_domains"],
             "preview_ttl_seconds": self.preview_tokens.ttl_seconds,
         }

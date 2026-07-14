@@ -13,6 +13,7 @@ const identity = (role: CurrentUserResponse['member']['role']): CurrentUserRespo
     can_browse_knowledge: true,
     can_create_knowledge: role !== 'reader',
     can_manage_members: role === 'maintainer',
+    can_manage_business_domains: role === 'maintainer',
   },
 })
 

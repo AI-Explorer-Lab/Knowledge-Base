@@ -11,6 +11,7 @@ from backend.constant.enums import (
     KnowledgeType,
     MemberRole,
     MemberStatus,
+    TechnicalDirection,
 )
 
 
@@ -23,17 +24,24 @@ class OptionItem(ResponseModel):
     label: str
 
 
+class BusinessDomainResponse(ResponseModel):
+    id: str
+    name: str
+    description: str
+
+
 class KnowledgeOptionsResponse(ResponseModel):
     scopes: List[OptionItem]
     knowledge_types: List[OptionItem]
     layers: List[OptionItem]
-    categories: Dict[str, List[str]]
-    business_domains: List[str]
+    technical_directions: List[OptionItem]
+    business_domains: List[BusinessDomainResponse]
     preview_ttl_seconds: int
 
 
 class KnowledgeTemplateResponse(ResponseModel):
     type: KnowledgeType
+    technical_direction: Optional[TechnicalDirection]
     content: str
 
 
@@ -56,6 +64,10 @@ class MembersResponse(ResponseModel):
 
 class MemberMutationResponse(ResponseModel):
     member: MemberResponse
+
+
+class BusinessDomainMutationResponse(ResponseModel):
+    business_domain: BusinessDomainResponse
 
 
 class PreviewCheck(ResponseModel):

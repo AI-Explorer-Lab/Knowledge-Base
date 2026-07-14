@@ -47,7 +47,8 @@ Dynaconf 从 `backend/config/app.yaml` 的 `environment`、`db`、`agent` 三个
 - `GET /api/health`：数据库与知识仓库健康状态
 - `GET /api/me`：当前成员与可用能力
 - `GET /api/knowledge`：按 Layer 或关键词浏览当前有效知识；人工只读且不写引用证据
-- `GET /api/knowledge/options`：后端受控知识选项
+- `GET /api/knowledge/options`：知识类型、可用层级、Layer 1 技术知识方向和 Layer 2 业务领域；Layer 1 按方向派生目录，其他层级按知识类型派生目录
+- `POST /api/business-domains`：Maintainer 新增 Layer 2 业务领域并记录审计日志
 - `POST /api/knowledge/preview`：预校验并签发短时预览凭证
 - `POST /api/knowledge/manual`：再次校验后原子写入知识、目录与日志
 - `GET /api/knowledge/{knowledge_id}`：完成页的人工只读查看，不计为 Agent 消费且不写 evidence
@@ -88,7 +89,7 @@ docker run --rm -p 8000:8000 \
 
 - 启动时报成员配置错误：检查 `.knowledge-config.yaml` 的 `version`、成员 ID、角色、状态和至少一名启用 Maintainer。
 - 开发身份被拒绝：确认 `KNOWLEDGE_AGENT__DEV_ACTOR` 对应启用成员，且启动后没有尝试用请求头切换身份。
-- Layer 2 不显示：先在 `.knowledge-config.yaml` 配置真实 `business_domains`；空列表时前端会主动隐藏 Layer 2，避免无效提交。
+- Layer 2 没有可选领域：Layer 2 会始终显示；请由 Maintainer 在知识注入页点击“新增业务领域”，Contributor 需联系 Maintainer。
 - 预览后无法提交：表单、成员角色、受控目录或配置发生变化时必须重新预览；服务端会拒绝旧上下文。
 - 健康检查返回 503：核对仓库挂载、配置文件、SQLite 路径权限和数据库连通性。
 - 写入失败：使用响应中的 `request_id` 检索结构化日志；服务会回滚知识文件、目录和日志，释放失败的预览预约以便安全重试。

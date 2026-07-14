@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
-from backend.constant.enums import KnowledgeType
+from backend.constant.enums import KnowledgeType, TechnicalDirection
 from backend.exceptions.business_exception import ApiError
 from backend.service.member_service import MemberService
 
@@ -14,6 +14,11 @@ TEMPLATE_FILES: Dict[KnowledgeType, str] = {
     "guideline": "guideline.md",
     "pitfall": "pitfall.md",
     "process": "process.md",
+}
+
+DIRECTION_TEMPLATE_FILES: Dict[TechnicalDirection, str] = {
+    "patterns": "pattern.md",
+    "anti-patterns": "anti-pattern.md",
 }
 
 
@@ -34,9 +39,24 @@ class KnowledgeTemplateService:
         self,
         knowledge_type: KnowledgeType,
         member: Dict[str, str],
-    ) -> Dict[str, str]:
+        technical_direction: Optional[TechnicalDirection] = None,
+    ) -> Dict[str, object]:
         self.members.require_role(member, "contributor", "maintainer")
-        template_path = self.template_dir / TEMPLATE_FILES[knowledge_type]
+        base_content = self._read(TEMPLATE_FILES[knowledge_type])
+        content = base_content
+        if technical_direction is not None:
+            direction_content = self._read(
+                DIRECTION_TEMPLATE_FILES[technical_direction]
+            )
+            content = f"{direction_content.rstrip()}\n\n{base_content.lstrip()}"
+        return {
+            "type": knowledge_type,
+            "technical_direction": technical_direction,
+            "content": content,
+        }
+
+    def _read(self, filename: str) -> str:
+        template_path = self.template_dir / filename
         try:
             content = template_path.read_text(encoding="utf-8")
         except OSError as exc:
@@ -51,4 +71,4 @@ class KnowledgeTemplateService:
                 "knowledge_template_empty",
                 "知识模板内容为空，请联系维护者",
             )
-        return {"type": knowledge_type, "content": content}
+        return content

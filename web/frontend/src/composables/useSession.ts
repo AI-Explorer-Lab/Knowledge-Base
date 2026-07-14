@@ -1,6 +1,6 @@
 import { readonly, reactive, ref } from 'vue'
 import { getCurrentUser, getKnowledgeOptions } from '@/api'
-import type { CurrentUserResponse, KnowledgeOptions, Member } from '@/types'
+import type { BusinessDomain, CurrentUserResponse, KnowledgeOptions, Member } from '@/types'
 import { markConnected } from '@/composables/useConnection'
 import { classifySessionFailure, type SessionFailureKind } from '@/utils/recovery'
 
@@ -12,6 +12,32 @@ const optionsError = ref('')
 const failureKind = ref<SessionFailureKind>('none')
 const blockedMember = ref<Member | null>(null)
 let loadPromise: Promise<void> | null = null
+
+async function reloadKnowledgeOptions(): Promise<KnowledgeOptions> {
+  if (!identity.value?.permissions.can_create_knowledge) {
+    throw new Error('当前角色无权加载知识治理选项')
+  }
+  optionsError.value = ''
+  try {
+    const nextOptions = await getKnowledgeOptions()
+    options.value = nextOptions
+    return nextOptions
+  } catch (reason) {
+    optionsError.value = reason instanceof Error ? reason.message : '无法加载知识治理选项'
+    throw reason
+  }
+}
+
+function cacheBusinessDomain(domain: BusinessDomain): void {
+  if (!options.value) return
+  options.value = {
+    ...options.value,
+    business_domains: [
+      ...options.value.business_domains.filter((item) => item.id !== domain.id),
+      domain,
+    ],
+  }
+}
 
 async function loadSession(force = false): Promise<void> {
   if (loadPromise && !force) return loadPromise
@@ -36,7 +62,7 @@ async function loadSession(force = false): Promise<void> {
       markConnected(true)
       if (nextIdentity.permissions.can_create_knowledge) {
         try {
-          options.value = await getKnowledgeOptions()
+          options.value = await reloadKnowledgeOptions()
         } catch (reason) {
           options.value = null
           optionsError.value = reason instanceof Error ? reason.message : '无法加载知识治理选项'
@@ -81,6 +107,8 @@ export function useSession() {
     failureKind: readonly(failureKind),
     blockedMember: readonly(blockedMember),
     loadSession,
+    reloadKnowledgeOptions,
+    cacheBusinessDomain,
   })
 }
 
@@ -93,5 +121,7 @@ export {
   failureKind as sessionFailureKind,
   blockedMember as sessionBlockedMember,
   loadSession,
+  reloadKnowledgeOptions,
+  cacheBusinessDomain,
   setBlockedSession,
 }

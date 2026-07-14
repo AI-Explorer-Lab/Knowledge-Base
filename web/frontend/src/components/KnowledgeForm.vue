@@ -22,11 +22,16 @@ import {
 } from 'lucide-vue-next'
 import { getKnowledgeTemplate } from '@/api'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
-import type { KnowledgeDraft, KnowledgeLayer, KnowledgeOptions, KnowledgeType } from '@/types'
+import type {
+  KnowledgeDraft,
+  KnowledgeLayer,
+  KnowledgeOptions,
+  KnowledgeType,
+  TechnicalDirection,
+} from '@/types'
 import { ApiError } from '@/types'
 import type { KnowledgeErrors } from '@/utils/knowledge'
 import {
-  categoryForType,
   formatLayer,
   shouldConfirmTemplateReplacement,
 } from '@/utils/knowledge'
@@ -36,24 +41,34 @@ const props = defineProps<{
   ownerId: string
   options: KnowledgeOptions | null
   errors: KnowledgeErrors
+  canManageBusinessDomains: boolean
 }>()
 
 const emit = defineEmits<{
   'template-loading': [loading: boolean]
+  'add-business-domain': []
 }>()
+
+interface TemplateSelection {
+  type: KnowledgeType
+  technicalDirection: TechnicalDirection | null
+  change: 'type' | 'technical-direction'
+}
 
 const editor = ref<HTMLTextAreaElement | null>(null)
 const tagField = ref<HTMLInputElement | null>(null)
 const tagInput = ref('')
 const selectedType = ref<KnowledgeType>(props.draft.type)
+const selectedTechnicalDirection = ref<TechnicalDirection | ''>(
+  props.draft.technical_direction ?? '',
+)
 const templateLoading = ref(false)
 const templateError = ref('')
-const loadedTemplateType = ref<KnowledgeType | null>(null)
+const loadedTemplateKey = ref<string | null>(null)
 const loadedTemplateContent = ref<string | null>(null)
-const pendingTemplateType = ref<KnowledgeType | null>(null)
-const retryTemplateType = ref<KnowledgeType | null>(null)
-const templateCache = new Map<KnowledgeType, string>()
-let initialTemplateRequested = false
+const pendingTemplateSelection = ref<TemplateSelection | null>(null)
+const retryTemplateSelection = ref<TemplateSelection | null>(null)
+const templateCache = new Map<string, string>()
 let templateRequestId = 0
 
 onBeforeUnmount(() => {
@@ -70,49 +85,82 @@ const knowledgeTypes = computed(() => props.options?.knowledge_types ?? [
 ])
 
 const layers = computed(() => props.options?.layers ?? [])
+const technicalDirections = computed(() => props.options?.technical_directions ?? [])
 
 const selectedLayer = computed<KnowledgeLayer>(() =>
   props.draft.scope === 'personal' ? 'layer0p' : (props.draft.layer ?? 'layer1'),
 )
 
-const categories = computed(() => props.options?.categories[selectedLayer.value] ?? [])
+const activeTechnicalDirection = computed<TechnicalDirection | null>(() =>
+  props.draft.scope === 'team' && props.draft.layer === 'layer1'
+    ? (props.draft.technical_direction ?? null)
+    : null,
+)
+
+const loadingTemplateLabel = computed(() =>
+  selectedTechnicalDirection.value
+    ? `${selectedTechnicalDirection.value} / ${selectedType.value}`
+    : selectedType.value,
+)
+
+const templateDialogDescription = computed(() =>
+  pendingTemplateSelection.value?.change === 'technical-direction'
+    ? '当前正文已经被修改。切换技术知识方向会使用新的方向补充模板和知识类型模板替换现有正文，此操作无法撤销。'
+    : '当前正文已经被修改。切换知识类型会使用新模板替换现有正文，此操作无法撤销。',
+)
+
+const storageLocation = computed(() => {
+  const base = formatLayer(selectedLayer.value)
+  if (selectedLayer.value === 'layer1' && props.draft.technical_direction) {
+    return `${base} / ${props.draft.technical_direction}`
+  }
+  if (selectedLayer.value === 'layer2' && props.draft.domain) {
+    return `${base} / ${props.draft.domain}`
+  }
+  return base
+})
 
 watch(templateLoading, (loading) => emit('template-loading', loading))
 
 watch(
-  () => props.draft.type,
-  (type) => {
-    if (!templateLoading.value && pendingTemplateType.value === null) selectedType.value = type
+  () => [props.draft.type, props.draft.technical_direction] as const,
+  ([type, technicalDirection]) => {
+    if (templateLoading.value || pendingTemplateSelection.value !== null) return
+    selectedType.value = type
+    selectedTechnicalDirection.value = technicalDirection ?? ''
   },
 )
 
 watch(
-  () => props.options,
-  (availableOptions) => {
-    if (!availableOptions || initialTemplateRequested) return
-    initialTemplateRequested = true
-    if (!props.draft.content.trim()) void loadTemplate(props.draft.type, 'initial')
-  },
-  { immediate: true },
-)
-
-watch(
-  () => [props.draft.scope, props.draft.type, props.draft.layer, props.options] as const,
-  ([scope, type]) => {
+  () => [props.draft.scope, props.draft.layer, props.options] as const,
+  ([scope]) => {
     if (scope === 'personal') {
       delete props.draft.layer
+      delete props.draft.technical_direction
       delete props.draft.domain
-      delete props.draft.category
     } else {
       const allowedLayers = props.options?.layers.map((item) => item.value) ?? []
       if (!props.draft.layer || !allowedLayers.includes(props.draft.layer)) {
         props.draft.layer = props.options?.layers[0]?.value
       }
-      if (props.draft.layer !== 'layer2') delete props.draft.domain
-      if (props.draft.layer) {
-        props.draft.category = categoryForType(type, props.draft.layer, props.options)
+      if (props.draft.layer === 'layer1') {
+        const allowedDirections = props.options?.technical_directions.map((item) => item.value) ?? []
+        if (
+          !props.draft.technical_direction
+          || !allowedDirections.includes(props.draft.technical_direction)
+        ) {
+          props.draft.technical_direction = props.options?.technical_directions[0]?.value
+        }
       } else {
-        delete props.draft.category
+        delete props.draft.technical_direction
+      }
+      if (props.draft.layer !== 'layer2') delete props.draft.domain
+      if (
+        props.draft.layer === 'layer2'
+        && props.draft.domain
+        && !props.options?.business_domains.some((domain) => domain.id === props.draft.domain)
+      ) {
+        delete props.draft.domain
       }
     }
   },
@@ -149,14 +197,42 @@ function removeSource(index: number) {
   props.draft.source_references.splice(index, 1)
 }
 
-async function templateContent(type: KnowledgeType): Promise<string> {
-  const cached = templateCache.get(type)
+function templateSelectionKey(
+  type: KnowledgeType,
+  technicalDirection: TechnicalDirection | null,
+): string {
+  return `${type}:${technicalDirection ?? 'base'}`
+}
+
+function currentTemplateSelection(change: TemplateSelection['change']): TemplateSelection {
+  return {
+    type: props.draft.type,
+    technicalDirection: activeTechnicalDirection.value,
+    change,
+  }
+}
+
+function syncTemplateSelectors() {
+  selectedType.value = props.draft.type
+  selectedTechnicalDirection.value = activeTechnicalDirection.value ?? ''
+}
+
+async function templateContent(selection: TemplateSelection): Promise<string> {
+  const key = templateSelectionKey(selection.type, selection.technicalDirection)
+  const cached = templateCache.get(key)
   if (cached !== undefined) return cached
-  const response = await getKnowledgeTemplate(type)
-  if (response.type !== type || !response.content.trim()) {
+  const response = await getKnowledgeTemplate(
+    selection.type,
+    selection.technicalDirection ?? undefined,
+  )
+  if (
+    response.type !== selection.type
+    || response.technical_direction !== selection.technicalDirection
+    || !response.content.trim()
+  ) {
     throw new Error('后端返回的知识模板无效')
   }
-  templateCache.set(type, response.content)
+  templateCache.set(key, response.content)
   return response.content
 }
 
@@ -168,88 +244,114 @@ function templateErrorMessage(reason: unknown): string {
       : '知识模板加载失败，请稍后重试'
 }
 
-async function loadTemplate(type: KnowledgeType, mode: 'initial' | 'switch') {
+async function loadTemplate(selection: TemplateSelection) {
   const requestId = ++templateRequestId
-  const contentBeforeRequest = props.draft.content
+  const contextBeforeRequest = `${props.draft.scope}:${props.draft.layer ?? 'layer0p'}`
   templateLoading.value = true
   templateError.value = ''
-  retryTemplateType.value = null
+  retryTemplateSelection.value = null
 
   try {
-    const content = await templateContent(type)
+    const content = await templateContent(selection)
     if (requestId !== templateRequestId) return
-
-    if (mode === 'initial') {
-      if (props.draft.type !== type || props.draft.content !== contentBeforeRequest) return
-    } else {
-      props.draft.type = type
-      if (props.draft.scope === 'team') {
-        props.draft.category = categoryForType(type, selectedLayer.value, props.options)
-      }
+    if (`${props.draft.scope}:${props.draft.layer ?? 'layer0p'}` !== contextBeforeRequest) {
+      syncTemplateSelectors()
+      return
     }
 
+    props.draft.type = selection.type
+    if (
+      props.draft.scope === 'team'
+      && props.draft.layer === 'layer1'
+      && selection.technicalDirection
+    ) {
+      props.draft.technical_direction = selection.technicalDirection
+    }
     props.draft.content = content
-    selectedType.value = type
-    loadedTemplateType.value = type
+    selectedType.value = selection.type
+    selectedTechnicalDirection.value = selection.technicalDirection ?? ''
+    loadedTemplateKey.value = templateSelectionKey(
+      selection.type,
+      selection.technicalDirection,
+    )
     loadedTemplateContent.value = content
   } catch (reason) {
     if (requestId !== templateRequestId) return
-    selectedType.value = props.draft.type
-    retryTemplateType.value = type
-    templateError.value = mode === 'switch'
-      ? `${templateErrorMessage(reason)}，已保留原有类型和正文`
-      : templateErrorMessage(reason)
+    syncTemplateSelectors()
+    retryTemplateSelection.value = selection
+    templateError.value = `${templateErrorMessage(reason)}，已保留原有类型和正文`
   } finally {
     if (requestId === templateRequestId) templateLoading.value = false
   }
 }
 
-function requestTypeChange(type: KnowledgeType) {
-  if (type === props.draft.type) {
+function requestTemplateChange(selection: TemplateSelection) {
+  const currentSelection = currentTemplateSelection(selection.change)
+  const currentKey = templateSelectionKey(
+    currentSelection.type,
+    currentSelection.technicalDirection,
+  )
+  const nextKey = templateSelectionKey(selection.type, selection.technicalDirection)
+  if (nextKey === currentKey) {
     templateRequestId += 1
     templateLoading.value = false
     templateError.value = ''
-    retryTemplateType.value = null
-    selectedType.value = props.draft.type
+    retryTemplateSelection.value = null
+    syncTemplateSelectors()
     return
   }
-  const currentTemplate = loadedTemplateType.value === props.draft.type
+  const currentTemplate = loadedTemplateKey.value === currentKey
     ? loadedTemplateContent.value
     : null
   if (shouldConfirmTemplateReplacement(props.draft.content, currentTemplate)) {
-    pendingTemplateType.value = type
-    selectedType.value = props.draft.type
+    pendingTemplateSelection.value = selection
+    syncTemplateSelectors()
     return
   }
-  void loadTemplate(type, 'switch')
+  void loadTemplate(selection)
 }
 
 function onTypeChange() {
-  requestTypeChange(selectedType.value)
+  requestTemplateChange({
+    type: selectedType.value,
+    technicalDirection: activeTechnicalDirection.value,
+    change: 'type',
+  })
+}
+
+function onTechnicalDirectionChange() {
+  if (!selectedTechnicalDirection.value) {
+    syncTemplateSelectors()
+    return
+  }
+  requestTemplateChange({
+    type: props.draft.type,
+    technicalDirection: selectedTechnicalDirection.value,
+    change: 'technical-direction',
+  })
 }
 
 function cancelTemplateSwitch() {
-  pendingTemplateType.value = null
-  selectedType.value = props.draft.type
+  pendingTemplateSelection.value = null
+  syncTemplateSelectors()
 }
 
 function confirmTemplateSwitch() {
-  const type = pendingTemplateType.value
-  pendingTemplateType.value = null
-  if (!type) return
-  selectedType.value = type
-  void loadTemplate(type, 'switch')
+  const selection = pendingTemplateSelection.value
+  pendingTemplateSelection.value = null
+  if (!selection) return
+  selectedType.value = selection.type
+  selectedTechnicalDirection.value = selection.technicalDirection ?? ''
+  void loadTemplate(selection)
 }
 
 function retryTemplate() {
-  const type = retryTemplateType.value ?? props.draft.type
+  const selection = retryTemplateSelection.value
   templateError.value = ''
-  selectedType.value = type
-  if (type === props.draft.type && !props.draft.content.trim()) {
-    void loadTemplate(type, 'initial')
-    return
-  }
-  requestTypeChange(type)
+  if (!selection) return
+  selectedType.value = selection.type
+  selectedTechnicalDirection.value = selection.technicalDirection ?? ''
+  void loadTemplate(selection)
 }
 
 async function wrapSelection(prefix: string, suffix = prefix, placeholder = '文本') {
@@ -379,23 +481,58 @@ async function prefixLines(prefix: string) {
           <ChevronDown :size="17" />
         </div>
       </div>
-      <div v-if="draft.layer === 'layer2'" class="form-row">
-        <label for="domain">业务领域 <em>*</em></label>
-        <div class="select-shell">
-          <select id="domain" v-model="draft.domain" :class="{ invalid: errors.domain }">
-            <option value="" disabled>请选择业务领域</option>
-            <option v-for="domain in options?.business_domains ?? []" :key="domain" :value="domain">{{ domain }}</option>
-          </select>
-          <ChevronDown :size="17" />
+      <div v-if="draft.layer === 'layer1'" class="form-row">
+        <label for="technical-direction">技术知识方向 <em>*</em></label>
+        <div class="form-control-stack">
+          <div class="select-shell">
+            <select
+              id="technical-direction"
+              v-model="selectedTechnicalDirection"
+              :class="{ invalid: errors.technical_direction }"
+              :aria-busy="templateLoading"
+              @change="onTechnicalDirectionChange"
+            >
+              <option value="" disabled>请选择技术知识方向</option>
+              <option
+                v-for="item in technicalDirections"
+                :key="item.value"
+                :value="item.value"
+              >{{ item.label }} · {{ item.value }}</option>
+            </select>
+            <ChevronDown :size="17" />
+          </div>
+          <p class="field-help">
+            <Info :size="16" />正向模式记录可复用方案；反模式记录应避免的技术做法及替代建议。
+          </p>
+          <p v-if="errors.technical_direction" class="field-error">{{ errors.technical_direction }}</p>
         </div>
       </div>
-      <div class="form-row">
-        <label for="category">受控分类</label>
-        <div class="select-shell">
-          <select id="category" v-model="draft.category">
-            <option v-for="category in categories" :key="category" :value="category">{{ category }}</option>
-          </select>
-          <ChevronDown :size="17" />
+      <div v-if="draft.layer === 'layer2'" class="form-row">
+        <label for="domain">业务领域 <em>*</em></label>
+        <div class="domain-control-stack">
+          <div class="domain-control-row">
+            <div class="select-shell">
+              <select id="domain" v-model="draft.domain" :class="{ invalid: errors.domain }">
+                <option value="" disabled>请选择业务领域</option>
+                <option
+                  v-for="domain in options?.business_domains ?? []"
+                  :key="domain.id"
+                  :value="domain.id"
+                >{{ domain.name }} · {{ domain.id }}</option>
+              </select>
+              <ChevronDown :size="17" />
+            </div>
+            <button
+              v-if="canManageBusinessDomains"
+              class="domain-add-button"
+              type="button"
+              @click="emit('add-business-domain')"
+            >+ 新增业务领域</button>
+          </div>
+          <p v-if="errors.domain" class="field-error">{{ errors.domain }}</p>
+          <p v-if="!options?.business_domains.length" class="domain-empty-help">
+            {{ canManageBusinessDomains ? '尚未配置业务领域，请先新增后再选择。' : '尚未配置业务领域，请联系 Maintainer 新增。' }}
+          </p>
         </div>
       </div>
     </template>
@@ -403,7 +540,7 @@ async function prefixLines(prefix: string) {
     <div class="form-row">
       <label for="storage">存储位置</label>
       <div class="input-with-icon read-only-input">
-        <input id="storage" :value="formatLayer(selectedLayer)" readonly />
+        <input id="storage" :value="storageLocation" readonly />
         <LockKeyhole :size="17" />
       </div>
     </div>
@@ -418,7 +555,7 @@ async function prefixLines(prefix: string) {
         >
           <template v-if="templateLoading">
             <span class="template-spinner" aria-hidden="true" />
-            <span>正在加载 {{ selectedType }} 模板…</span>
+            <span>正在加载 {{ loadingTemplateLabel }} 模板…</span>
           </template>
           <template v-else-if="templateError">
             <span>{{ templateError }}</span>
@@ -428,7 +565,7 @@ async function prefixLines(prefix: string) {
           </template>
           <template v-else>
             <Info :size="16" />
-            <span>正文已按知识类型提供填写示例，请根据真实知识修改内容。</span>
+            <span>首次打开保持为空；切换知识类型或 Layer 1 技术方向时可载入对应填写模板。</span>
           </template>
         </div>
         <div
@@ -465,9 +602,9 @@ async function prefixLines(prefix: string) {
       <p v-if="errors.content" class="field-error editor-error">{{ errors.content }}</p>
     </div>
     <ConfirmDialog
-      :open="pendingTemplateType !== null"
+      :open="pendingTemplateSelection !== null"
       title="替换知识正文？"
-      description="当前正文已经被修改。切换知识类型会使用新模板替换现有正文，此操作无法撤销。"
+      :description="templateDialogDescription"
       confirm-text="替换正文"
       danger
       @cancel="cancelTemplateSwitch"

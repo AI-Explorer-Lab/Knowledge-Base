@@ -395,6 +395,33 @@ class KnowledgeGovernanceTest(unittest.TestCase):
         self.assertIn("`personal`", personal_catalog)
         self.assertIn("`team`", team_catalog)
 
+    def test_layer1_accepts_only_technical_direction_directories(self):
+        result, _, error = self.run_command(
+            "create",
+            "--path",
+            "tech-wiki/guidelines/invalid.md",
+            "--id",
+            "TK-GDL-999",
+            "--title",
+            "错误目录示例",
+            "--type",
+            "guideline",
+            "--layer",
+            "layer1",
+            "--scope",
+            "team",
+            "--source",
+            "测试",
+            "--content",
+            "Layer 1 不应按五种知识类型建立目录。",
+            "--actor",
+            "alice",
+            "--role",
+            "contributor",
+        )
+        self.assertEqual(result, 1)
+        self.assertIn("patterns/ 或 anti-patterns/", error)
+
 
 if __name__ == "__main__":
     unittest.main()

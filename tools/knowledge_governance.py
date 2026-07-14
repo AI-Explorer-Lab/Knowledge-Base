@@ -22,6 +22,14 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tupl
 
 
 KNOWLEDGE_TYPES = {"model", "decision", "guideline", "pitfall", "process"}
+TYPE_CATEGORIES = {
+    "model": "models",
+    "decision": "decisions",
+    "guideline": "guidelines",
+    "pitfall": "pitfalls",
+    "process": "processes",
+}
+TECHNICAL_DIRECTIONS = {"patterns", "anti-patterns"}
 LAYERS = {"layer0p", "layer1", "layer2", "layer3"}
 TEAM_LAYERS = {"layer1", "layer2", "layer3"}
 SCOPES = {"personal", "team"}
@@ -371,7 +379,7 @@ def personal_owner_for_path(repo: Path, path: Path) -> Optional[str]:
 
 def validate_path_metadata(repo: Path, path: Path, metadata: Dict[str, Any]) -> List[str]:
     errors: List[str] = []
-    actual_layer, _, _, _ = layer_context(repo, path)
+    actual_layer, _, _, active_relative = layer_context(repo, path)
     if metadata.get("layer") != actual_layer:
         errors.append(
             f"路径属于 {actual_layer}，与元数据 layer={metadata.get('layer')} 不一致"
@@ -384,6 +392,16 @@ def validate_path_metadata(repo: Path, path: Path, metadata: Dict[str, Any]) -> 
             errors.append(f"owner_id 必须与个人目录成员 {path_owner} 一致")
     elif metadata_scope(metadata) != "team":
         errors.append("Layer 1、Layer 2、Layer 3 知识必须使用 scope=team")
+    actual_category = active_relative.parts[0] if active_relative.parts else None
+    if actual_layer == "layer1":
+        if actual_category not in TECHNICAL_DIRECTIONS:
+            errors.append("Layer 1 技术知识必须位于 patterns/ 或 anti-patterns/ 目录")
+    else:
+        expected_category = TYPE_CATEGORIES.get(metadata.get("type"))
+        if expected_category and actual_category != expected_category:
+            errors.append(
+                f"知识类型 {metadata.get('type')} 必须位于 {expected_category}/ 目录"
+            )
     return errors
 
 
@@ -997,6 +1015,13 @@ def cmd_propose_promotion(args: argparse.Namespace) -> None:
     if not eligible_for_verified(metadata):
         raise GovernanceError("提升候选至少需要一次有对应引用的成功验证")
     target = destination_for_promotion(repo, args.target_layer, args.destination, path.name)
+    prospective_metadata = dict(metadata)
+    prospective_metadata["layer"] = args.target_layer
+    prospective_metadata["scope"] = "team"
+    prospective_metadata.pop("owner_id", None)
+    target_errors = validate_path_metadata(repo, target, prospective_metadata)
+    if target_errors:
+        raise GovernanceError("提升目标路径无效：\n- " + "\n- ".join(target_errors))
     metadata["promotion"]["candidate"] = True
     metadata["promotion"]["target_layer"] = args.target_layer
     metadata["promotion"]["target_path"] = target.relative_to(repo).as_posix()
@@ -1082,10 +1107,7 @@ def cmd_rollback_layer(args: argparse.Namespace) -> None:
     actual_layer, source_root, archived, _ = layer_context(repo, path)
     if archived or actual_layer not in {"layer1", "layer2"}:
         raise GovernanceError("只有活跃的 Layer 1 或 Layer 2 知识可以退回 Layer 3")
-    relative_destination = Path(args.destination)
-    if relative_destination.is_absolute() or ".." in relative_destination.parts:
-        raise GovernanceError("退回目标必须是 docs/knowledge/ 下的安全相对目录")
-    target = repo / "docs" / "knowledge" / relative_destination / path.name
+    target = repo / "docs" / "knowledge" / TYPE_CATEGORIES[metadata["type"]] / path.name
     source_relative = path.relative_to(repo)
     target_relative = target.relative_to(repo)
     metadata["promotion"]["previous_layers"].append(
@@ -1473,7 +1495,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     rollback = subparsers.add_parser("rollback-layer", help="将 Layer 1/2 条目退回 Layer 3")
     rollback.add_argument("path")
-    rollback.add_argument("--destination", required=True, help="docs/knowledge/ 下的相对目录")
     rollback.add_argument("--reason", required=True)
     add_actor_options(rollback, ("maintainer",))
     rollback.set_defaults(func=cmd_rollback_layer)

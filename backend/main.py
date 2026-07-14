@@ -8,13 +8,20 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config.config import settings as default_settings
-from backend.controller import health_api, identity_api, knowledge_api, member_api
+from backend.controller import (
+    business_domain_api,
+    health_api,
+    identity_api,
+    knowledge_api,
+    member_api,
+)
 from backend.database.lifecycle import close_database, init_database
 from backend.exceptions.exception_handler import install_exception_handlers
 from backend.middlewares.auth_dependency import IdentityService
 from backend.middlewares.request_logging import RequestLoggingMiddleware
 from backend.service.knowledge_service import KnowledgeService
 from backend.service.knowledge_template_service import KnowledgeTemplateService
+from backend.service.business_domain_service import BusinessDomainService
 from backend.service.member_service import MemberService
 from backend.service.preview_token_service import PreviewTokenService
 from backend.service.repository_lock import RepositoryWriteLock
@@ -70,6 +77,7 @@ def create_app(settings: Any = None) -> FastAPI:
     app.state.settings = settings
     app.state.identity = IdentityService(settings)
     app.state.members = member_service
+    app.state.business_domains = BusinessDomainService(member_service, write_lock)
     app.state.knowledge_templates = KnowledgeTemplateService(member_service)
     app.state.knowledge = KnowledgeService(
         settings.repo_root,
@@ -83,6 +91,7 @@ def create_app(settings: Any = None) -> FastAPI:
     app.include_router(identity_api.router)
     app.include_router(knowledge_api.router)
     app.include_router(member_api.router)
+    app.include_router(business_domain_api.router)
     return app
 
 

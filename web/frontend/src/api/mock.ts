@@ -1,5 +1,6 @@
 import type {
   CreateKnowledgeResponse,
+  BusinessDomain,
   CurrentUserResponse,
   KnowledgeDraft,
   KnowledgeFile,
@@ -12,10 +13,11 @@ import type {
   MembersResponse,
   PreviewResponse,
   Role,
+  TechnicalDirection,
 } from '@/types'
 import { ApiError } from '@/types'
 
-const wait = (milliseconds = 180) => new Promise((resolve) => window.setTimeout(resolve, milliseconds))
+const wait = (milliseconds = 180) => new Promise((resolve) => globalThis.setTimeout(resolve, milliseconds))
 
 const members: Member[] = [
   { id: 'zhangsan', display_name: '张三', role: 'maintainer', status: 'active' },
@@ -50,7 +52,7 @@ const seededFiles: KnowledgeFile[] = [
     created_at: '2026-07-11T08:40:00Z',
     tags: ['governance', 'team'],
     source_references: ['团队架构评审'],
-    relative_path: 'tech-wiki/guidelines/TK-GDL-001.md',
+    relative_path: 'tech-wiki/patterns/TK-GDL-001.md',
     content: '所有人工知识在写入前都必须经过元数据、路径、权限和索引校验。',
   },
   {
@@ -89,13 +91,15 @@ const options: KnowledgeOptions = {
     { value: 'layer2', label: 'Layer 2 · 业务知识' },
     { value: 'layer3', label: 'Layer 3 · 项目知识' },
   ],
-  categories: {
-    layer0p: ['guidelines', 'decisions', 'models', 'pitfalls', 'processes'],
-    layer1: ['patterns', 'guidelines', 'pitfalls'],
-    layer2: ['models', 'decisions', 'processes'],
-    layer3: ['decisions', 'guidelines', 'processes'],
-  },
-  business_domains: ['order', 'customer', 'billing'],
+  technical_directions: [
+    { value: 'patterns', label: '正向模式' },
+    { value: 'anti-patterns', label: '反模式' },
+  ],
+  business_domains: [
+    { id: 'order', name: '订单', description: '订单履约与交易过程' },
+    { id: 'customer', name: '客户', description: '客户关系与客户服务' },
+    { id: 'billing', name: '结算', description: '计费、对账与结算' },
+  ],
   preview_ttl_seconds: 600,
 }
 
@@ -208,6 +212,53 @@ const knowledgeTemplates: Record<KnowledgeType, string> = {
 `,
 }
 
+const technicalDirectionTemplates: Record<TechnicalDirection, string> = {
+  patterns: `## 模式摘要
+
+请概括这个正向技术模式解决的问题和核心做法。
+
+## 复用条件
+
+请说明采用这个模式前需要满足的技术条件和适用边界。
+
+## 收益与代价
+
+请记录采用这个模式能够获得的收益，以及需要承担的复杂度或成本。
+
+## 验证案例
+
+请提供已经验证该模式有效的项目、场景或结果。
+
+---
+
+以下内容请继续按照所选知识类型填写。
+`,
+  'anti-patterns': `## 反模式摘要
+
+请概括这个反模式中的错误做法，以及它通常出现在哪些场景。
+
+## 识别信号与危害
+
+请记录能够识别该反模式的现象、风险和实际影响。
+
+## 产生原因
+
+请说明团队为什么容易采用这种做法。
+
+## 推荐替代方案
+
+请说明应该改用什么方案，以及替代方案解决问题的方式。
+
+## 迁移方式
+
+请列出从反模式迁移到推荐方案的步骤和注意事项。
+
+---
+
+以下内容请继续按照所选知识类型填写。
+`,
+}
+
 const typeCodes = {
   model: 'MDL',
   decision: 'DEC',
@@ -224,11 +275,22 @@ const typeCategories = {
   process: 'processes',
 } as const
 
+const technicalDirectionCodes = {
+  patterns: 'PAT',
+  'anti-patterns': 'AP',
+} as const
+
 function makePreview(draft: KnowledgeDraft): PreviewResponse {
   const personal = draft.scope === 'personal'
-  const id = `${personal ? 'PK-ZS' : 'TK'}-${typeCodes[draft.type]}-001`
   const layer = personal ? 'layer0p' : (draft.layer ?? 'layer1')
-  const category = draft.category || (personal ? typeCategories[draft.type] : 'patterns')
+  const prefix = personal ? 'PK-ZS' : layer === 'layer2' ? 'BK' : layer === 'layer3' ? 'PJ' : 'TK'
+  const code = layer === 'layer1'
+    ? technicalDirectionCodes[draft.technical_direction ?? 'patterns']
+    : typeCodes[draft.type]
+  const id = `${prefix}-${code}-001`
+  const category = layer === 'layer1'
+    ? (draft.technical_direction ?? 'patterns')
+    : typeCategories[draft.type]
   const base = personal
     ? 'personal-prefernece/zhangsan/knowledge'
     : layer === 'layer1'
@@ -297,6 +359,7 @@ export async function mockGetCurrentUser(): Promise<CurrentUserResponse> {
       can_browse_knowledge: true,
       can_create_knowledge: member.role === 'contributor' || member.role === 'maintainer',
       can_manage_members: member.role === 'maintainer',
+      can_manage_business_domains: member.role === 'maintainer',
     },
     environment: 'development',
   }
@@ -307,9 +370,34 @@ export async function mockGetKnowledgeOptions(): Promise<KnowledgeOptions> {
   return structuredClone(options)
 }
 
-export async function mockGetKnowledgeTemplate(type: KnowledgeType): Promise<KnowledgeTemplate> {
+export async function mockCreateBusinessDomain(payload: {
+  id: string
+  name: string
+  description: string
+}): Promise<{ business_domain: BusinessDomain }> {
+  await wait()
+  if (options.business_domains.some((domain) => domain.id === payload.id)) {
+    throw new ApiError('业务领域标识已存在', {
+      status: 409,
+      code: 'business_domain_exists',
+      fieldErrors: [{ field: 'id', message: '请使用其他领域标识' }],
+    })
+  }
+  const businessDomain = { ...payload }
+  options.business_domains.push(businessDomain)
+  return { business_domain: structuredClone(businessDomain) }
+}
+
+export async function mockGetKnowledgeTemplate(
+  type: KnowledgeType,
+  technicalDirection?: TechnicalDirection,
+): Promise<KnowledgeTemplate> {
   await wait(80)
-  return { type, content: knowledgeTemplates[type] }
+  const baseContent = knowledgeTemplates[type]
+  const content = technicalDirection
+    ? `${technicalDirectionTemplates[technicalDirection].trimEnd()}\n\n${baseContent.trimStart()}`
+    : baseContent
+  return { type, technical_direction: technicalDirection ?? null, content }
 }
 
 export async function mockPreviewKnowledge(draft: KnowledgeDraft): Promise<PreviewResponse> {

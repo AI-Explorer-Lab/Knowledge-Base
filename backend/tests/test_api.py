@@ -54,19 +54,6 @@ def config_data():
         ],
         "knowledge_options": {
             "business_domains": ["finance"],
-            "categories": {
-                "layer0p": ["models", "decisions", "guidelines", "pitfalls", "processes"],
-                "layer1": [
-                    "patterns",
-                    "models",
-                    "decisions",
-                    "guidelines",
-                    "pitfalls",
-                    "processes",
-                ],
-                "layer2": ["models", "decisions", "guidelines", "pitfalls", "processes"],
-                "layer3": ["models", "decisions", "guidelines", "pitfalls", "processes"],
-            },
         },
     }
 
@@ -125,10 +112,12 @@ def team_payload(**updates):
         "tags": ["governance"],
         "source_references": ["架构评审"],
         "layer": "layer1",
-        "category": "patterns",
+        "technical_direction": "patterns",
         "content": "所有人工注入都必须先预览。",
     }
     payload.update(updates)
+    if payload.get("layer") != "layer1" and "technical_direction" not in updates:
+        payload.pop("technical_direction", None)
     return payload
 
 
@@ -168,6 +157,7 @@ def test_knowledge_templates_are_controlled_and_role_protected(repo: Path):
         assert response.status_code == 200, response.text
         assert response.json() == {
             "type": knowledge_type,
+            "technical_direction": None,
             "content": (template_dir / filename).read_text(encoding="utf-8"),
         }
         assert response.json()["content"].startswith("## ")
@@ -180,6 +170,30 @@ def test_knowledge_templates_are_controlled_and_role_protected(repo: Path):
 
     unsupported = contributor.get("/api/knowledge/templates/unknown")
     assert unsupported.status_code == 422
+
+    base_content = (template_dir / "guideline.md").read_text(encoding="utf-8")
+    direction_files = {
+        "patterns": "pattern.md",
+        "anti-patterns": "anti-pattern.md",
+    }
+    for technical_direction, filename in direction_files.items():
+        direction_content = (template_dir / filename).read_text(encoding="utf-8")
+        response = contributor.get(
+            "/api/knowledge/templates/guideline",
+            params={"technical_direction": technical_direction},
+        )
+        assert response.status_code == 200, response.text
+        assert response.json() == {
+            "type": "guideline",
+            "technical_direction": technical_direction,
+            "content": f"{direction_content.rstrip()}\n\n{base_content.lstrip()}",
+        }
+
+    invalid_direction = contributor.get(
+        "/api/knowledge/templates/guideline",
+        params={"technical_direction": "unknown"},
+    )
+    assert invalid_direction.status_code == 422
 
     reader = client_for(repo, "wangwu")
     assert reader.get("/api/knowledge/templates/guideline").status_code == 403
@@ -199,6 +213,22 @@ def test_knowledge_template_missing_or_empty_returns_clear_error(repo: Path):
     empty = contributor.get("/api/knowledge/templates/guideline")
     assert empty.status_code == 500
     assert empty.json()["detail"]["code"] == "knowledge_template_empty"
+
+    (isolated_templates / "guideline.md").write_text("## 指南\n", encoding="utf-8")
+    missing_direction = contributor.get(
+        "/api/knowledge/templates/guideline",
+        params={"technical_direction": "patterns"},
+    )
+    assert missing_direction.status_code == 500
+    assert missing_direction.json()["detail"]["code"] == "knowledge_template_unavailable"
+
+    (isolated_templates / "pattern.md").write_text("\n", encoding="utf-8")
+    empty_direction = contributor.get(
+        "/api/knowledge/templates/guideline",
+        params={"technical_direction": "patterns"},
+    )
+    assert empty_direction.status_code == 500
+    assert empty_direction.json()["detail"]["code"] == "knowledge_template_empty"
 
 
 def test_health_lifespan_database_and_request_id(repo: Path):
@@ -366,14 +396,14 @@ def test_actor_form_and_storage_fields_cannot_be_forged(repo: Path):
 
     traversal = lisi.post(
         "/api/knowledge/preview",
-        json=team_payload(category="../archive", path="/tmp/escape.md"),
+        json=team_payload(category="arbitrary-folder", path="/tmp/escape.md"),
     )
     assert traversal.status_code == 422
 
 
 def test_team_layer_domain_whitelist_and_actor_bound_token(repo: Path):
     lisi = client_for(repo, "lisi")
-    layer2 = team_payload(layer="layer2", category="guidelines", domain="finance")
+    layer2 = team_payload(layer="layer2", domain="finance")
     preview = lisi.post("/api/knowledge/preview", json=layer2)
     assert preview.status_code == 200, preview.text
     data = preview.json()
@@ -381,7 +411,7 @@ def test_team_layer_domain_whitelist_and_actor_bound_token(repo: Path):
 
     unknown_domain = lisi.post(
         "/api/knowledge/preview",
-        json=team_payload(layer="layer2", category="guidelines", domain="unknown"),
+        json=team_payload(layer="layer2", domain="unknown"),
     )
     assert unknown_domain.status_code == 422
     assert unknown_domain.json()["detail"]["code"] == "invalid_domain"
@@ -393,7 +423,70 @@ def test_team_layer_domain_whitelist_and_actor_bound_token(repo: Path):
     assert denied.json()["detail"]["code"] == "preview_actor_mismatch"
 
 
-def test_layer2_option_is_hidden_when_no_business_domain_is_configured(repo: Path):
+def test_technical_direction_is_required_only_for_layer1(repo: Path):
+    client = client_for(repo, "lisi")
+    missing = team_payload()
+    missing.pop("technical_direction")
+    response = client.post("/api/knowledge/preview", json=missing)
+    assert response.status_code == 422
+
+    misplaced = client.post(
+        "/api/knowledge/preview",
+        json=team_payload(layer="layer2", domain="finance", technical_direction="patterns"),
+    )
+    assert misplaced.status_code == 422
+
+
+@pytest.mark.parametrize(
+    ("technical_direction", "expected_id", "directory"),
+    [
+        ("patterns", "TK-PAT-001", "patterns"),
+        ("anti-patterns", "TK-AP-001", "anti-patterns"),
+    ],
+)
+def test_layer1_direction_controls_path_and_id(
+    repo: Path,
+    technical_direction: str,
+    expected_id: str,
+    directory: str,
+):
+    response = client_for(repo, "lisi").post(
+        "/api/knowledge/preview",
+        json=team_payload(technical_direction=technical_direction),
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["preview"]["id"] == expected_id
+    assert response.json()["preview"]["relative_path"].startswith(
+        f"tech-wiki/{directory}/"
+    )
+
+
+@pytest.mark.parametrize(
+    ("knowledge_type", "directory"),
+    [
+        ("model", "models"),
+        ("decision", "decisions"),
+        ("guideline", "guidelines"),
+        ("pitfall", "pitfalls"),
+        ("process", "processes"),
+    ],
+)
+def test_team_directory_is_derived_from_knowledge_type(
+    repo: Path,
+    knowledge_type: str,
+    directory: str,
+):
+    response = client_for(repo, "lisi").post(
+        "/api/knowledge/preview",
+        json=team_payload(type=knowledge_type, layer="layer3"),
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["preview"]["relative_path"].startswith(
+        f"docs/knowledge/{directory}/"
+    )
+
+
+def test_layer2_option_remains_visible_when_no_business_domain_is_configured(repo: Path):
     config = config_data()
     config["knowledge_options"]["business_domains"] = []
     (repo / ".knowledge-config.yaml").write_text(
@@ -402,28 +495,96 @@ def test_layer2_option_is_hidden_when_no_business_domain_is_configured(repo: Pat
     )
     response = client_for(repo, "lisi").get("/api/knowledge/options")
     assert response.status_code == 200
-    assert "layer2" not in {item["value"] for item in response.json()["layers"]}
+    assert "layer2" in {item["value"] for item in response.json()["layers"]}
+    assert response.json()["business_domains"] == []
+    assert response.json()["technical_directions"] == [
+        {"value": "patterns", "label": "正向模式"},
+        {"value": "anti-patterns", "label": "反模式"},
+    ]
+    assert "categories" not in response.json()
+
+
+def test_maintainer_can_create_business_domain_and_options_refresh(repo: Path):
+    config = config_data()
+    config["knowledge_options"]["business_domains"] = []
+    (repo / ".knowledge-config.yaml").write_text(
+        yaml.safe_dump(config, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    maintainer = client_for(repo, "zhangsan")
+
+    created = maintainer.post(
+        "/api/business-domains",
+        json={
+            "id": "order",
+            "name": "订单",
+            "description": "订单履约与交易过程",
+        },
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["business_domain"] == {
+        "id": "order",
+        "name": "订单",
+        "description": "订单履约与交易过程",
+    }
+
+    options = maintainer.get("/api/knowledge/options")
+    assert options.status_code == 200
+    assert options.json()["business_domains"] == [created.json()["business_domain"]]
+    persisted = yaml.safe_load((repo / ".knowledge-config.yaml").read_text(encoding="utf-8"))
+    assert persisted["knowledge_options"]["business_domains"] == [
+        created.json()["business_domain"]
+    ]
+    assert not (repo / "biz-wiki" / "order").exists()
+    audit_log = (repo / "log.md").read_text(encoding="utf-8")
+    assert "business-domain-create" in audit_log
+    assert "web:business-domains" in audit_log
+
+    duplicate = maintainer.post(
+        "/api/business-domains",
+        json={"id": "order", "name": "重复订单", "description": ""},
+    )
+    assert duplicate.status_code == 409
+    assert duplicate.json()["detail"]["code"] == "business_domain_exists"
+
+
+def test_only_maintainer_can_create_safe_business_domain(repo: Path):
+    contributor = client_for(repo, "lisi")
+    denied = contributor.post(
+        "/api/business-domains",
+        json={"id": "order", "name": "订单", "description": ""},
+    )
+    assert denied.status_code == 403
+    assert denied.json()["detail"]["code"] == "permission_denied"
+
+    maintainer = client_for(repo, "zhangsan")
+    for unsafe_id in ["archive", "Order", "../order"]:
+        invalid = maintainer.post(
+            "/api/business-domains",
+            json={"id": unsafe_id, "name": "订单", "description": ""},
+        )
+        assert invalid.status_code == 422
 
 
 @pytest.mark.parametrize(
     ("payload", "expected_id", "path_prefix", "layer_catalog", "layer_summary"),
     [
         (
-            team_payload(layer="layer1", category="patterns"),
-            "TK-GDL-001",
+            team_payload(layer="layer1"),
+            "TK-PAT-001",
             "tech-wiki/patterns/",
             "tech-wiki/catalog.md",
             "Layer 1",
         ),
         (
-            team_payload(layer="layer2", category="guidelines", domain="finance"),
+            team_payload(layer="layer2", domain="finance"),
             "BK-GDL-001",
             "biz-wiki/finance/guidelines/",
             "biz-wiki/finance/catalog.md",
             "Layer 2",
         ),
         (
-            team_payload(layer="layer3", category="guidelines"),
+            team_payload(layer="layer3"),
             "PJ-GDL-001",
             "docs/knowledge/guidelines/",
             "docs/knowledge/catalog.md",

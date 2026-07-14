@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { mockGetKnowledgeTemplate } from '@/api/mock'
 import { renderMarkdown } from '@/utils/markdown'
 import {
   buildKnowledgePayload,
-  categoryForType,
   initialKnowledgeDraft,
   shouldConfirmTemplateReplacement,
   validateKnowledgeDraft,
@@ -20,13 +20,11 @@ const options: KnowledgeOptions = {
     { value: 'layer2', label: 'Layer 2' },
     { value: 'layer3', label: 'Layer 3' },
   ],
-  categories: {
-    layer0p: ['guidelines'],
-    layer1: ['patterns'],
-    layer2: ['models'],
-    layer3: ['decisions'],
-  },
-  business_domains: ['order'],
+  technical_directions: [
+    { value: 'patterns', label: '正向模式' },
+    { value: 'anti-patterns', label: '反模式' },
+  ],
+  business_domains: [{ id: 'order', name: '订单', description: '订单履约' }],
   preview_ttl_seconds: 600,
 }
 
@@ -45,54 +43,78 @@ describe('knowledge request shaping', () => {
   it('omits all backend-derived and hidden fields for personal knowledge', () => {
     const draft = initialKnowledgeDraft()
     draft.layer = 'layer2'
+    draft.technical_direction = 'patterns'
     draft.domain = 'order'
-    draft.category = 'models'
 
     const payload = buildKnowledgePayload(draft)
 
     expect(payload.scope).toBe('personal')
     expect(payload).not.toHaveProperty('layer')
     expect(payload).not.toHaveProperty('domain')
+    expect(payload).not.toHaveProperty('technical_direction')
     expect(payload).not.toHaveProperty('category')
     expect(payload).not.toHaveProperty('owner_id')
     expect(payload).not.toHaveProperty('maturity')
   })
 
-  it('keeps only the selected controlled team location fields', () => {
+  it('sends only the layer and Layer 2 domain selected by the user', () => {
     const draft = initialKnowledgeDraft()
     Object.assign(draft, {
       scope: 'team',
       layer: 'layer2',
       domain: 'order',
-      category: 'models',
     })
 
     expect(buildKnowledgePayload(draft)).toMatchObject({
       scope: 'team',
       layer: 'layer2',
       domain: 'order',
-      category: 'models',
+    })
+    expect(buildKnowledgePayload(draft)).not.toHaveProperty('category')
+    expect(buildKnowledgePayload(draft)).not.toHaveProperty('technical_direction')
+  })
+
+  it('sends a separate technical direction only for Layer 1', () => {
+    const draft = initialKnowledgeDraft()
+    Object.assign(draft, {
+      scope: 'team',
+      layer: 'layer1',
+      technical_direction: 'anti-patterns',
+    })
+
+    expect(buildKnowledgePayload(draft)).toMatchObject({
+      scope: 'team',
+      layer: 'layer1',
+      technical_direction: 'anti-patterns',
     })
   })
 
   it('requires a domain only for Layer 2 team knowledge', () => {
     const draft = initialKnowledgeDraft()
-    Object.assign(draft, { scope: 'team', layer: 'layer2', category: 'models', domain: '' })
+    Object.assign(draft, { scope: 'team', layer: 'layer2', domain: '' })
     expect(validateKnowledgeDraft(draft).domain).toBeTruthy()
 
     draft.layer = 'layer1'
-    draft.category = 'patterns'
     expect(validateKnowledgeDraft(draft).domain).toBeUndefined()
+  })
+
+  it('requires a technical direction only for Layer 1 team knowledge', () => {
+    const draft = initialKnowledgeDraft()
+    Object.assign(draft, { scope: 'team', layer: 'layer1' })
+    expect(validateKnowledgeDraft(draft).technical_direction).toBeTruthy()
+
+    draft.technical_direction = 'patterns'
+    expect(validateKnowledgeDraft(draft).technical_direction).toBeUndefined()
+
+    draft.layer = 'layer3'
+    delete draft.technical_direction
+    expect(validateKnowledgeDraft(draft).technical_direction).toBeUndefined()
   })
 
   it('accepts any nonempty Markdown body as required by the plan', () => {
     const draft = initialKnowledgeDraft()
     draft.content = '有效'
     expect(validateKnowledgeDraft(draft).content).toBeUndefined()
-  })
-
-  it('normalizes a category to an allowed server option', () => {
-    expect(categoryForType('guideline', 'layer1', options)).toBe('patterns')
   })
 
   it('protects edited content before replacing a knowledge template', () => {
@@ -102,6 +124,33 @@ describe('knowledge request shaping', () => {
     expect(shouldConfirmTemplateReplacement(originalTemplate, originalTemplate)).toBe(false)
     expect(shouldConfirmTemplateReplacement(`${originalTemplate}\n用户补充`, originalTemplate)).toBe(true)
     expect(shouldConfirmTemplateReplacement('从预览页返回的正文', null)).toBe(true)
+  })
+})
+
+describe('knowledge template composition', () => {
+  it('returns a base template without a Layer 1 direction', async () => {
+    const template = await mockGetKnowledgeTemplate('guideline')
+
+    expect(template.technical_direction).toBeNull()
+    expect(template.content).toContain('## 适用场景')
+    expect(template.content).not.toContain('## 模式摘要')
+    expect(template.content).not.toContain('## 反模式摘要')
+  })
+
+  it.each([
+    ['patterns', '## 模式摘要'],
+    ['anti-patterns', '## 反模式摘要'],
+  ] as const)('places the %s direction template before the selected base template', async (
+    technicalDirection,
+    directionHeading,
+  ) => {
+    const template = await mockGetKnowledgeTemplate('decision', technicalDirection)
+
+    expect(template.technical_direction).toBe(technicalDirection)
+    expect(template.content.indexOf(directionHeading)).toBe(0)
+    expect(template.content.indexOf('## 背景')).toBeGreaterThan(
+      template.content.indexOf(directionHeading),
+    )
   })
 })
 

@@ -10,6 +10,7 @@ from backend.constant.enums import (
     MemberRole,
     MemberStatus,
     TeamLayer,
+    TechnicalDirection,
 )
 
 
@@ -24,12 +25,7 @@ class KnowledgeInput(StrictModel):
     tags: List[str] = Field(default_factory=list, max_length=20)
     source_references: List[str] = Field(min_length=1, max_length=20)
     layer: Optional[TeamLayer] = None
-    category: Optional[str] = Field(
-        default=None,
-        min_length=1,
-        max_length=48,
-        pattern=r"^[a-z0-9][a-z0-9-]*$",
-    )
+    technical_direction: Optional[TechnicalDirection] = None
     domain: Optional[str] = Field(
         default=None,
         min_length=1,
@@ -76,15 +72,17 @@ class KnowledgeInput(StrictModel):
         if self.scope == "personal":
             if self.layer is not None:
                 raise ValueError("个人知识的层级由后端固定为 layer0p")
+            if self.technical_direction is not None:
+                raise ValueError("个人知识不能指定技术知识方向")
             if self.domain is not None:
                 raise ValueError("个人知识不能指定业务领域")
-            if self.category is not None:
-                raise ValueError("个人知识的分类由后端根据知识类型派生")
         else:
             if self.layer is None:
                 raise ValueError("团队知识必须选择层级")
-            if self.category is None:
-                raise ValueError("团队知识必须选择受控分类")
+            if self.layer == "layer1" and self.technical_direction is None:
+                raise ValueError("Layer 1 知识必须选择技术知识方向")
+            if self.layer != "layer1" and self.technical_direction is not None:
+                raise ValueError("只有 Layer 1 知识可以指定技术知识方向")
             if self.layer == "layer2" and self.domain is None:
                 raise ValueError("Layer 2 知识必须选择业务领域")
             if self.layer != "layer2" and self.domain is not None:
@@ -94,6 +92,30 @@ class KnowledgeInput(StrictModel):
 
 class ManualKnowledgeRequest(KnowledgeInput):
     preview_token: str = Field(min_length=20, max_length=8192)
+
+
+class BusinessDomainCreate(StrictModel):
+    id: str = Field(
+        min_length=1,
+        max_length=48,
+        pattern=r"^[a-z0-9][a-z0-9-]*$",
+    )
+    name: str = Field(min_length=1, max_length=80)
+    description: str = Field(default="", max_length=240)
+
+    @field_validator("id")
+    @classmethod
+    def validate_id(cls, value: str) -> str:
+        if value == "archive":
+            raise ValueError("archive 是保留标识，不能作为业务领域")
+        return value
+
+    @field_validator("name", "description")
+    @classmethod
+    def validate_text(cls, value: str) -> str:
+        if any(ord(character) < 32 or ord(character) == 127 for character in value):
+            raise ValueError("业务领域信息不能包含控制字符或换行")
+        return value
 
 
 class MemberCreate(StrictModel):

@@ -3,11 +3,19 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { FileCheck2, Info, LockKeyhole, ShieldCheck } from 'lucide-vue-next'
 import KnowledgeForm from '@/components/KnowledgeForm.vue'
+import BusinessDomainDialog from '@/components/BusinessDomainDialog.vue'
 import MetadataCard from '@/components/MetadataCard.vue'
 import StepProgress from '@/components/StepProgress.vue'
-import { identity, options, sessionOptionsError } from '@/composables/useSession'
+import {
+  cacheBusinessDomain,
+  identity,
+  options,
+  reloadKnowledgeOptions,
+  sessionOptionsError,
+} from '@/composables/useSession'
 import { useKnowledgeFlow } from '@/composables/useKnowledgeFlow'
 import { pushToast } from '@/composables/useToast'
+import { createBusinessDomain } from '@/api'
 import { ApiError, type KnowledgeLayer } from '@/types'
 import {
   fingerprintDraft,
@@ -30,6 +38,10 @@ const errors = ref<KnowledgeErrors>({})
 const requestError = ref('')
 const baseline = ref('')
 const templateLoading = ref(false)
+const domainDialogOpen = ref(false)
+const domainSaving = ref(false)
+const domainRequestError = ref('')
+const domainFieldErrors = ref<Partial<Record<'name' | 'id' | 'description', string>>>({})
 
 const ownerId = computed(() => identity.value?.member.id ?? '')
 const pendingMetadata = computed(() => {
@@ -111,6 +123,48 @@ async function goToPreview() {
     pushToast(requestError.value, 'error')
   }
 }
+
+function openBusinessDomainDialog() {
+  domainRequestError.value = ''
+  domainFieldErrors.value = {}
+  domainDialogOpen.value = true
+}
+
+function closeBusinessDomainDialog() {
+  if (domainSaving.value) return
+  domainDialogOpen.value = false
+}
+
+async function saveBusinessDomain(payload: { id: string; name: string; description: string }) {
+  domainSaving.value = true
+  domainRequestError.value = ''
+  domainFieldErrors.value = {}
+  try {
+    const response = await createBusinessDomain(payload)
+    cacheBusinessDomain(response.business_domain)
+    draft.scope = 'team'
+    draft.layer = 'layer2'
+    draft.domain = response.business_domain.id
+    domainDialogOpen.value = false
+    try {
+      await reloadKnowledgeOptions()
+      pushToast(`业务领域“${response.business_domain.name}”已创建并选中`, 'success')
+    } catch {
+      pushToast('业务领域已创建，但选项刷新失败；请刷新页面后再预览', 'info')
+    }
+  } catch (reason) {
+    domainRequestError.value = reason instanceof Error ? reason.message : '业务领域创建失败，请重试'
+    if (reason instanceof ApiError) {
+      for (const item of reason.fieldErrors) {
+        if (['name', 'id', 'description'].includes(item.field)) {
+          domainFieldErrors.value[item.field as 'name' | 'id' | 'description'] = item.message
+        }
+      }
+    }
+  } finally {
+    domainSaving.value = false
+  }
+}
 </script>
 
 <template>
@@ -138,7 +192,9 @@ async function goToPreview() {
         :owner-id="ownerId"
         :options="options"
         :errors="errors"
+        :can-manage-business-domains="identity?.permissions.can_manage_business_domains ?? false"
         @template-loading="templateLoading = $event"
+        @add-business-domain="openBusinessDomainDialog"
       />
 
       <aside class="create-sidebar">
@@ -186,5 +242,14 @@ async function goToPreview() {
         <button class="button button-muted button-wide" type="button" disabled><LockKeyhole :size="17" />确认注入</button>
       </div>
     </footer>
+
+    <BusinessDomainDialog
+      :open="domainDialogOpen"
+      :busy="domainSaving"
+      :request-error="domainRequestError"
+      :field-errors="domainFieldErrors"
+      @cancel="closeBusinessDomainDialog"
+      @save="saveBusinessDomain"
+    />
   </div>
 </template>

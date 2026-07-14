@@ -8,33 +8,7 @@ members:
     role: maintainer
     status: active
 
-# These are the only directory segments accepted by the manual injection API.
-# Add real Layer 2 domains here before enabling business-knowledge injection.
+# Layer 2 business domains are controlled here. Layer 1 directions are the fixed
+# patterns/anti-patterns pair; all other type directories are derived by backend.
 knowledge_options:
   business_domains: []
-  categories:
-    layer0p:
-      - models
-      - decisions
-      - guidelines
-      - pitfalls
-      - processes
-    layer1:
-      - patterns
-      - models
-      - decisions
-      - guidelines
-      - pitfalls
-      - processes
-    layer2:
-      - models
-      - decisions
-      - guidelines
-      - pitfalls
-      - processes
-    layer3:
-      - models
-      - decisions
-      - guidelines
-      - pitfalls
-      - processes

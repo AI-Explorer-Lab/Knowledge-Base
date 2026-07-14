@@ -1,6 +1,7 @@
 import { apiRequest } from './client'
 import {
   mockCreateKnowledge,
+  mockCreateBusinessDomain,
   mockCreateMember,
   mockGetCurrentUser,
   mockGetKnowledgeOptions,
@@ -13,6 +14,7 @@ import {
 } from './mock'
 import type {
   CreateKnowledgeResponse,
+  BusinessDomain,
   CurrentUserResponse,
   KnowledgeDraft,
   KnowledgeFile,
@@ -25,6 +27,7 @@ import type {
   MembersResponse,
   PreviewResponse,
   Role,
+  TechnicalDirection,
 } from '@/types'
 
 export const isMockApi = import.meta.env.DEV && (
@@ -38,10 +41,25 @@ export const getCurrentUser = (): Promise<CurrentUserResponse> =>
 export const getKnowledgeOptions = (): Promise<KnowledgeOptions> =>
   isMockApi ? mockGetKnowledgeOptions() : apiRequest('/knowledge/options')
 
-export const getKnowledgeTemplate = (type: KnowledgeType): Promise<KnowledgeTemplate> =>
+export const createBusinessDomain = (payload: {
+  id: string
+  name: string
+  description: string
+}): Promise<{ business_domain: BusinessDomain }> =>
   isMockApi
-    ? mockGetKnowledgeTemplate(type)
-    : apiRequest(`/knowledge/templates/${encodeURIComponent(type)}`)
+    ? mockCreateBusinessDomain(payload)
+    : apiRequest('/business-domains', { method: 'POST', body: JSON.stringify(payload) })
+
+export const getKnowledgeTemplate = (
+  type: KnowledgeType,
+  technicalDirection?: TechnicalDirection,
+): Promise<KnowledgeTemplate> => {
+  if (isMockApi) return mockGetKnowledgeTemplate(type, technicalDirection)
+  const params = new URLSearchParams()
+  if (technicalDirection) params.set('technical_direction', technicalDirection)
+  const suffix = params.size ? `?${params.toString()}` : ''
+  return apiRequest(`/knowledge/templates/${encodeURIComponent(type)}${suffix}`)
+}
 
 export const getKnowledgeById = (knowledgeId: string): Promise<{ knowledge: KnowledgeFile }> =>
   isMockApi
