@@ -16,5 +16,8 @@
 | ID | 标题 | 类型 | 成熟度 | 范围 | 所有者 | 标签 | 路径 |
 |---|---|---|---|---|---|---|---|
 | `TK-AP-001` | 编辑框不要设计为右下角手动拖拽，改为高度随内容增减 | `guideline` | `draft` | `team` | `-` | web, frontend, ai, design | `tech-wiki/anti-patterns/TK-AP-001.md` |
+| `TK-DEC-001` | 后端架构设计模板 | `decision` | `draft` | `team` | `-` | backend, architecture, design, development | `tech-wiki/decisions/TK-DEC-001.md` |
+| `TK-DEC-002` | 开发时使用python的版本为3.12 | `decision` | `draft` | `team` | `-` | python, development, backend | `tech-wiki/decisions/TK-DEC-002.md` |
+| `TK-DEC-003` | 前端开发语言用vue | `decision` | `draft` | `team` | `-` | fronten, vue, development | `tech-wiki/decisions/TK-DEC-003.md` |
 | `TK-GDL-001` | 知识治理脚本只使用 Python 标准库 | `guideline` | `draft` | `team` | `-` | python, governance, dependency | `tech-wiki/patterns/TK-GDL-001.md` |
 <!-- knowledge-index:end -->
