@@ -10,3 +10,7 @@
 - 2026-07-14T00:59:31Z | `zhangsan` | `create` | `PK-ZS-GDL-003` | personal-prefernece/zhangsan/knowledge/guidelines/PK-ZS-GDL-003.md | `web:manual`
 - 2026-07-14T04:48:35Z | `zhangsan` | `create` | `TK-AP-001` | tech-wiki/anti-patterns/TK-AP-001.md | `web:manual`
 - 2026-07-14T06:28:34Z | `zhangsan` | `member-create` | `fanwei` | {"after": {"display_name": "范为", "id": "fanwei", "role": "maintainer", "status": "active"}} | `web:members`
+- 2026-07-14T07:02:55Z | `zhangsan` | `create` | `TK-DEC-001` | tech-wiki/decisions/TK-DEC-001.md | `web:manual`
+- 2026-07-14T10:14:33Z | `zhangsan` | `create` | `TK-DEC-002` | tech-wiki/decisions/TK-DEC-002.md | `web:manual`
+- 2026-07-14T10:15:49Z | `zhangsan` | `create` | `TK-DEC-003` | tech-wiki/decisions/TK-DEC-003.md | `web:manual`
+- 2026-07-14T11:14:15Z | `zhangsan` | `create` | `TK-GDL-002` | tech-wiki/guidelines/TK-GDL-002.md | `web:manual`

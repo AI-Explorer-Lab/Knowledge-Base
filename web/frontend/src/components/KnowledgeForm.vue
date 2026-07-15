@@ -75,7 +75,6 @@ let templateRequestId = 0
 
 onMounted(() => {
   window.addEventListener('keydown', onEditorKeydown)
-  void nextTick(resizeEditor)
 })
 
 onBeforeUnmount(() => {
@@ -136,18 +135,9 @@ const storageLocation = computed(() => {
 
 watch(templateLoading, (loading) => emit('template-loading', loading))
 
-watch(
-  () => props.draft.content,
-  () => void nextTick(resizeEditor),
-  { flush: 'post' },
-)
-
 watch(editorFullscreen, (fullscreen) => {
   document.body.classList.toggle('editor-fullscreen-open', fullscreen)
-  void nextTick(() => {
-    resizeEditor()
-    editor.value?.focus()
-  })
+  void nextTick(() => editor.value?.focus())
 })
 
 watch(
@@ -223,17 +213,6 @@ function removeSource(index: number) {
     return
   }
   props.draft.source_references.splice(index, 1)
-}
-
-function resizeEditor() {
-  const input = editor.value
-  if (!input) return
-  if (editorFullscreen.value) {
-    input.style.height = ''
-    return
-  }
-  input.style.height = 'auto'
-  input.style.height = `${input.scrollHeight}px`
 }
 
 function toggleEditorFullscreen() {
@@ -645,14 +624,16 @@ async function prefixLines(prefix: string) {
               <Maximize2 v-else :size="17" />
             </button>
           </div>
-          <textarea
-            id="knowledge-content"
-            ref="editor"
-            v-model="draft.content"
-            :disabled="templateLoading"
-            spellcheck="false"
-            aria-label="Markdown 知识正文"
-          />
+          <div class="editor-textarea-grow" :data-replicated-value="draft.content">
+            <textarea
+              id="knowledge-content"
+              ref="editor"
+              v-model="draft.content"
+              :disabled="templateLoading"
+              spellcheck="false"
+              aria-label="Markdown 知识正文"
+            />
+          </div>
         </div>
       </div>
       <p v-if="errors.content" class="field-error editor-error">{{ errors.content }}</p>
