@@ -100,6 +100,9 @@ class KnowledgeService:
         if layer == "layer0p":
             category = TYPE_CATEGORIES[request.type]
             path = self.repo / "personal-prefernece" / actor / "knowledge" / category / filename
+        elif layer == "layer0t":
+            category = TYPE_CATEGORIES[request.type]
+            path = self.repo / "team-conventions" / category / filename
         elif layer == "layer1":
             category = TYPE_CATEGORIES[request.type]
             path = self.repo / "tech-wiki" / category / filename
@@ -238,6 +241,7 @@ class KnowledgeService:
                 {"value": "process", "label": "流程"},
             ],
             "layers": [
+                {"value": "layer0t", "label": "Layer 0-T 团队约定"},
                 {"value": "layer1", "label": "Layer 1 技术知识"},
                 {"value": "layer2", "label": "Layer 2 业务知识"},
                 {"value": "layer3", "label": "Layer 3 项目知识"},
@@ -546,6 +550,7 @@ class KnowledgeService:
         self.members.get_member(actor["id"])
         counts: Dict[str, int] = {
             "layer0p": 0,
+            "layer0t": 0,
             "layer1": 0,
             "layer2": 0,
             "layer3": 0,

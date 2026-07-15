@@ -9,6 +9,7 @@ import {
   Layers3,
   RefreshCw,
   Search,
+  ScrollText,
   UserRound,
 } from 'lucide-vue-next'
 import KnowledgeFileModal from '@/components/KnowledgeFileModal.vue'
@@ -32,6 +33,7 @@ type LayerChoice = {
 const layerChoices: LayerChoice[] = [
   { label: '全部知识', description: '跨层查看', icon: Layers3, tone: 'all' },
   { value: 'layer0p', label: 'Layer 0-P', description: '个人经验', icon: UserRound, tone: 'personal' },
+  { value: 'layer0t', label: 'Layer 0-T', description: '团队约定', icon: ScrollText, tone: 'convention' },
   { value: 'layer1', label: 'Layer 1', description: '技术知识', icon: Code2, tone: 'technical' },
   { value: 'layer2', label: 'Layer 2', description: '业务知识', icon: BriefcaseBusiness, tone: 'business' },
   { value: 'layer3', label: 'Layer 3', description: '项目知识', icon: FolderKanban, tone: 'project' },
@@ -41,6 +43,7 @@ const selectedLayer = ref<KnowledgeLayer | undefined>()
 const items = ref<KnowledgeListItem[]>([])
 const counts = ref<Record<KnowledgeLayer, number>>({
   layer0p: 0,
+  layer0t: 0,
   layer1: 0,
   layer2: 0,
   layer3: 0,
@@ -197,7 +200,7 @@ async function openKnowledge(item: KnowledgeListItem) {
           @click="openKnowledge(item)"
         >
           <span class="knowledge-card-topline">
-            <span class="card-layer-badge" :class="`badge-${item.layer}`">{{ item.layer === 'layer0p' ? 'Layer 0-P' : item.layer.replace('layer', 'Layer ') }}</span>
+            <span class="card-layer-badge" :class="`badge-${item.layer}`">{{ item.layer === 'layer0p' ? 'Layer 0-P' : item.layer === 'layer0t' ? 'Layer 0-T' : item.layer.replace('layer', 'Layer ') }}</span>
             <span class="maturity-pill" :class="`maturity-${item.maturity}`"><i />{{ maturityLabel(item.maturity) }}</span>
           </span>
           <span class="knowledge-card-title-row">

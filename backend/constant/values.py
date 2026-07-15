@@ -14,7 +14,7 @@ TYPE_CATEGORIES = {
     "process": "processes",
 }
 
-LAYER_PREFIXES = {"layer1": "TK", "layer2": "BK", "layer3": "PJ"}
+LAYER_PREFIXES = {"layer0t": "TC", "layer1": "TK", "layer2": "BK", "layer3": "PJ"}
 
 IDENTITY_ACTOR_HEADER = "x-knowledge-actor"
 IDENTITY_TIMESTAMP_HEADER = "x-knowledge-timestamp"

@@ -14,3 +14,8 @@
 - 2026-07-14T10:14:33Z | `zhangsan` | `create` | `TK-DEC-002` | tech-wiki/decisions/TK-DEC-002.md | `web:manual`
 - 2026-07-14T10:15:49Z | `zhangsan` | `create` | `TK-DEC-003` | tech-wiki/decisions/TK-DEC-003.md | `web:manual`
 - 2026-07-14T11:14:15Z | `zhangsan` | `create` | `TK-GDL-002` | tech-wiki/guidelines/TK-GDL-002.md | `web:manual`
+- 2026-07-15T14:31:29Z | `zhangsan` | `create` | `TK-GDL-003` | tech-wiki/guidelines/TK-GDL-003.md | `web:manual`
+- 2026-07-15T14:33:52Z | `zhangsan` | `member-update` | `fanwei` | {"after": {"display_name": "范为", "id": "fanwei", "role": "reader", "status": "active"}, "before": {"display_name": "范为", "id": "fanwei", "role": "maintainer", "status": "active"}} | `web:members`
+- 2026-07-15T14:34:19Z | `zhangsan` | `member-update` | `fanwei` | {"after": {"display_name": "范为", "id": "fanwei", "role": "maintainer", "status": "disabled"}, "before": {"display_name": "范为", "id": "fanwei", "role": "reader", "status": "active"}} | `web:members`
+- 2026-07-15T14:34:25Z | `zhangsan` | `member-update` | `fanwei` | {"after": {"display_name": "范为", "id": "fanwei", "role": "maintainer", "status": "active"}, "before": {"display_name": "范为", "id": "fanwei", "role": "maintainer", "status": "disabled"}} | `web:members`
+- 2026-07-15T15:37:21Z | `zhangsan` | `create` | `TC-GDL-001` | team-conventions/guidelines/TC-GDL-001.md | `web:manual`

@@ -30,8 +30,8 @@ TYPE_CATEGORIES = {
     "process": "processes",
 }
 TECHNICAL_DIRECTIONS = {"patterns", "anti-patterns"}
-LAYERS = {"layer0p", "layer1", "layer2", "layer3"}
-TEAM_LAYERS = {"layer1", "layer2", "layer3"}
+LAYERS = {"layer0p", "layer0t", "layer1", "layer2", "layer3"}
+TEAM_LAYERS = {"layer0t", "layer1", "layer2", "layer3"}
 SCOPES = {"personal", "team"}
 MATURITIES = {"draft", "verified", "proven"}
 CONFLICT_STATES = {"none", "suspected", "confirmed", "resolved"}
@@ -152,7 +152,7 @@ def repository_write_lock(repo: Path) -> Iterator[None]:
 
 
 def write_entry(path: Path, metadata: Dict[str, Any], body: str) -> None:
-    # Existing Layer 1/2/3 entries predate the scope field. Persist the inferred
+    # Existing team entries may predate the scope field. Persist the inferred
     # team scope the next time one of those entries is changed.
     if "scope" not in metadata and metadata.get("layer") in TEAM_LAYERS:
         metadata["scope"] = "team"
@@ -184,7 +184,7 @@ def validate_record_fields(
 
 
 def metadata_scope(metadata: Dict[str, Any]) -> Optional[str]:
-    """Return scope while keeping legacy Layer 1/2/3 metadata compatible."""
+    """Return scope while keeping legacy team metadata compatible."""
     scope = metadata.get("scope")
     if scope is None and metadata.get("layer") in TEAM_LAYERS:
         return "team"
@@ -373,6 +373,10 @@ def layer_context(repo: Path, path: Path) -> Tuple[str, Path, bool, Path]:
         root = repo / "personal-prefernece" / parts[1] / "knowledge"
         layer = "layer0p"
         remainder = Path(*parts[3:])
+    elif parts[0] == "team-conventions":
+        root = repo / "team-conventions"
+        layer = "layer0t"
+        remainder = Path(*parts[1:])
     elif parts[0] == "tech-wiki":
         root = repo / "tech-wiki"
         layer = "layer1"
@@ -387,7 +391,7 @@ def layer_context(repo: Path, path: Path) -> Tuple[str, Path, bool, Path]:
         remainder = Path(*parts[2:])
     else:
         raise GovernanceError(
-            f"知识条目必须位于个人 knowledge/、Layer 1、Layer 2 或 Layer 3：{relative}"
+            f"知识条目必须位于个人 knowledge/、Layer 0-T、Layer 1、Layer 2 或 Layer 3：{relative}"
         )
 
     remainder_parts = remainder.parts
@@ -420,7 +424,7 @@ def validate_path_metadata(repo: Path, path: Path, metadata: Dict[str, Any]) -> 
         if metadata.get("owner_id") != path_owner:
             errors.append(f"owner_id 必须与个人目录成员 {path_owner} 一致")
     elif metadata_scope(metadata) != "team":
-        errors.append("Layer 1、Layer 2、Layer 3 知识必须使用 scope=team")
+        errors.append("Layer 0-T、Layer 1、Layer 2、Layer 3 知识必须使用 scope=team")
     actual_category = active_relative.parts[0] if active_relative.parts else None
     if actual_layer == "layer1":
         expected_category = TYPE_CATEGORIES.get(metadata.get("type"))
@@ -458,7 +462,7 @@ def is_special_file(path: Path) -> bool:
 
 
 def knowledge_roots(repo: Path) -> List[Path]:
-    roots = [repo / "tech-wiki", repo / "docs" / "knowledge"]
+    roots = [repo / "team-conventions", repo / "tech-wiki", repo / "docs" / "knowledge"]
     biz_root = repo / "biz-wiki"
     if biz_root.exists():
         roots.extend(sorted(path for path in biz_root.iterdir() if path.is_dir()))
@@ -476,10 +480,15 @@ def knowledge_roots(repo: Path) -> List[Path]:
 
 def iter_candidate_files(repo: Path) -> Iterable[Path]:
     seen: set = set()
+    team_conventions_root = repo / "team-conventions"
     for root in knowledge_roots(repo):
         if not root.exists():
             continue
         for path in sorted(root.rglob("*.md")):
+            # Existing Layer 0-T documents at the root remain valid legacy
+            # conventions. Structured entries live in type subdirectories.
+            if root == team_conventions_root and path.parent == root:
+                continue
             resolved = path.resolve()
             if resolved in seen or is_special_file(path):
                 continue
@@ -823,6 +832,8 @@ def catalog_title(repo: Path, path: Path) -> str:
     owner = personal_owner_for_path(repo, path)
     if owner:
         return f"# {owner} 的个人知识分类清单\n"
+    if path.parent == repo / "team-conventions":
+        return "# 团队约定分类清单\n"
     return "# 知识分类清单\n"
 
 
@@ -838,6 +849,7 @@ def summary_section(repo: Path) -> str:
         "## 治理状态摘要\n\n"
         "| 层级 | 活跃条目 | 归档条目 |\n|---|---:|---:|\n"
         f"| Layer 0-P | {active_counts['layer0p']} | {archived_counts['layer0p']} |\n"
+        f"| Layer 0-T | {active_counts['layer0t']} | {archived_counts['layer0t']} |\n"
         f"| Layer 1 | {active_counts['layer1']} | {archived_counts['layer1']} |\n"
         f"| Layer 2 | {active_counts['layer2']} | {archived_counts['layer2']} |\n"
         f"| Layer 3 | {active_counts['layer3']} | {archived_counts['layer3']} |"

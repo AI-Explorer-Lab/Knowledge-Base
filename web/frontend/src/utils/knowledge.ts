@@ -26,7 +26,7 @@ export function buildKnowledgePayload(draft: KnowledgeDraft): KnowledgeDraft {
   }
 
   if (draft.scope === 'team') {
-    payload.layer = draft.layer ?? 'layer1'
+    payload.layer = draft.layer ?? 'layer0t'
     if (payload.layer === 'layer1' && draft.technical_direction) {
       payload.technical_direction = draft.technical_direction
     }
@@ -68,6 +68,7 @@ export function shouldConfirmTemplateReplacement(
 export function formatLayer(layer: KnowledgeLayer) {
   const labels: Record<KnowledgeLayer, string> = {
     layer0p: 'Layer 0-P · personal',
+    layer0t: 'Layer 0-T · 团队约定',
     layer1: 'Layer 1 · 技术知识',
     layer2: 'Layer 2 · 业务知识',
     layer3: 'Layer 3 · 项目知识',

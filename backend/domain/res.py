@@ -90,7 +90,7 @@ class CreatedKnowledge(ResponseModel):
     type: KnowledgeType
     scope: KnowledgeScope
     owner_id: Optional[str]
-    layer: str
+    layer: KnowledgeLayer
     technical_direction: Optional[TechnicalDirection]
     maturity: Literal["draft"]
     created_at: str

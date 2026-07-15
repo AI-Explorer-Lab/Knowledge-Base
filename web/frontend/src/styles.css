@@ -2448,7 +2448,7 @@ body.editor-fullscreen-open {
 
 .layer-tabs {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 10px;
   border-bottom: 1px solid #e4e9f1;
   background: linear-gradient(180deg, #fbfcff 0%, #f7f9fd 100%);
@@ -2500,6 +2500,7 @@ body.editor-fullscreen-open {
 
 .layer-all { --layer-color: #3569d4; }
 .layer-personal { --layer-color: #7c5ce7; }
+.layer-convention { --layer-color: #b15f8e; }
 .layer-technical { --layer-color: #1473b8; }
 .layer-business { --layer-color: #0a8b70; }
 .layer-project { --layer-color: #d0782a; }
@@ -2702,6 +2703,7 @@ body.editor-fullscreen-open {
 }
 
 .badge-layer0p { background: #f3efff; color: #6d4bd2; }
+.badge-layer0t { background: #fff0f7; color: #9b4778; }
 .badge-layer1 { background: #edf6fc; color: #176da8; }
 .badge-layer2 { background: #edf8f5; color: #08785f; }
 .badge-layer3 { background: #fff5e9; color: #aa5c18; }
