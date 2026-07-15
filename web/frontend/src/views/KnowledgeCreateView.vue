@@ -46,7 +46,7 @@ const domainFieldErrors = ref<Partial<Record<'name' | 'id' | 'description', stri
 const ownerId = computed(() => identity.value?.member.id ?? '')
 const pendingMetadata = computed(() => {
   if (preview.value && previewIsCurrent.value) return preview.value.preview
-  const layer: KnowledgeLayer = draft.scope === 'personal' ? 'layer0p' : (draft.layer ?? 'layer1')
+  const layer: KnowledgeLayer = draft.scope === 'personal' ? 'layer0p' : (draft.layer ?? 'layer0t')
   return {
     id: '待后端生成',
     scope: draft.scope,

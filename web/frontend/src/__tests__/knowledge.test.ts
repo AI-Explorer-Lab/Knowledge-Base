@@ -16,6 +16,7 @@ const options: KnowledgeOptions = {
   ],
   knowledge_types: [{ value: 'guideline', label: 'guideline' }],
   layers: [
+    { value: 'layer0t', label: 'Layer 0-T' },
     { value: 'layer1', label: 'Layer 1' },
     { value: 'layer2', label: 'Layer 2' },
     { value: 'layer3', label: 'Layer 3' },
@@ -72,6 +73,23 @@ describe('knowledge request shaping', () => {
     })
     expect(buildKnowledgePayload(draft)).not.toHaveProperty('category')
     expect(buildKnowledgePayload(draft)).not.toHaveProperty('technical_direction')
+  })
+
+  it('sends Layer 0-T as team knowledge without unrelated fields', () => {
+    const draft = initialKnowledgeDraft()
+    Object.assign(draft, {
+      scope: 'team',
+      layer: 'layer0t',
+      technical_direction: 'patterns',
+      domain: 'order',
+    })
+
+    expect(buildKnowledgePayload(draft)).toMatchObject({
+      scope: 'team',
+      layer: 'layer0t',
+    })
+    expect(buildKnowledgePayload(draft)).not.toHaveProperty('technical_direction')
+    expect(buildKnowledgePayload(draft)).not.toHaveProperty('domain')
   })
 
   it('sends a separate technical direction only for Layer 1', () => {

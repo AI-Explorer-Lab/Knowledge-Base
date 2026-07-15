@@ -43,6 +43,21 @@ const seededFiles: KnowledgeFile[] = [
     content: '启动服务前，先确认目标端口没有被占用，并检查服务监听地址。',
   },
   {
+    id: 'TC-GDL-001',
+    title: '团队提交信息约定',
+    type: 'guideline',
+    scope: 'team',
+    owner_id: null,
+    layer: 'layer0t',
+    technical_direction: null,
+    maturity: 'verified',
+    created_at: '2026-07-12T09:10:00Z',
+    tags: ['team', 'commit'],
+    source_references: ['团队协作约定'],
+    relative_path: 'team-conventions/guidelines/TC-GDL-001.md',
+    content: '提交信息需要说明变更目的，并保持一次提交只处理一个清晰主题。',
+  },
+  {
     id: 'TK-GDL-001',
     title: '知识治理协作约定',
     type: 'guideline',
@@ -90,6 +105,7 @@ const options: KnowledgeOptions = {
     { value: 'process', label: 'process' },
   ],
   layers: [
+    { value: 'layer0t', label: 'Layer 0-T · 团队约定' },
     { value: 'layer1', label: 'Layer 1 · 技术知识' },
     { value: 'layer2', label: 'Layer 2 · 业务知识' },
     { value: 'layer3', label: 'Layer 3 · 项目知识' },
@@ -280,18 +296,28 @@ const typeCategories = {
 
 function makePreview(draft: KnowledgeDraft): PreviewResponse {
   const personal = draft.scope === 'personal'
-  const layer = personal ? 'layer0p' : (draft.layer ?? 'layer1')
-  const prefix = personal ? 'PK-ZS' : layer === 'layer2' ? 'BK' : layer === 'layer3' ? 'PJ' : 'TK'
+  const layer = personal ? 'layer0p' : (draft.layer ?? 'layer0t')
+  const prefix = personal
+    ? 'PK-ZS'
+    : layer === 'layer0t'
+      ? 'TC'
+      : layer === 'layer2'
+        ? 'BK'
+        : layer === 'layer3'
+          ? 'PJ'
+          : 'TK'
   const code = typeCodes[draft.type]
   const id = `${prefix}-${code}-001`
   const category = typeCategories[draft.type]
   const base = personal
     ? 'personal-prefernece/zhangsan/knowledge'
-    : layer === 'layer1'
-      ? 'tech-wiki'
-      : layer === 'layer2'
-        ? `biz-wiki/${draft.domain || 'order'}`
-        : 'docs/knowledge'
+    : layer === 'layer0t'
+      ? 'team-conventions'
+      : layer === 'layer1'
+        ? 'tech-wiki'
+        : layer === 'layer2'
+          ? `biz-wiki/${draft.domain || 'order'}`
+          : 'docs/knowledge'
   const relativePath = `${base}/${category}/${id}.md`
   const createdAt = new Date().toISOString()
   const token = `preview_${crypto.randomUUID()}`
@@ -478,6 +504,7 @@ export async function mockListKnowledge(
   const normalizedQuery = query.trim().toLowerCase()
   const counts: Record<KnowledgeLayer, number> = {
     layer0p: 0,
+    layer0t: 0,
     layer1: 0,
     layer2: 0,
     layer3: 0,

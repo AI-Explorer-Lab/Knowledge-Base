@@ -1,7 +1,7 @@
 ```knowledge-metadata
 {
   "conflict_status": "none",
-  "created_at": "2026-07-14T10:15:45Z",
+  "created_at": "2026-07-15T15:37:17Z",
   "evidence": {
     "contributors": [
       "zhangsan"
@@ -9,8 +9,8 @@
     "references": [],
     "validations": []
   },
-  "id": "TK-DEC-003",
-  "layer": "layer1",
+  "id": "TC-GDL-001",
+  "layer": "layer0t",
   "maturity": "draft",
   "promotion": {
     "candidate": false,
@@ -20,21 +20,24 @@
   },
   "scope": "team",
   "source_references": [
-    "团队共识"
+    "团队知识总结"
   ],
   "tags": [
-    "fronten",
-    "vue",
-    "development"
+    "time zoom",
+    "design",
+    "time"
   ],
-  "technical_direction": "patterns",
-  "title": "前端开发语言用vue3+type script",
-  "type": "decision"
+  "title": "时间用utf-8",
+  "type": "guideline"
 }
 ```
 
-# 前端开发语言用vue
+# 时间用utf-8
 
-## 模式摘要
+## 适用场景
 
-前端开发语言用vue
+涉及时间时，例如：开始时间、结束时间等
+
+## 推荐做法
+
+时间用utf-8

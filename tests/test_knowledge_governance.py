@@ -90,6 +90,34 @@ class KnowledgeGovernanceTest(unittest.TestCase):
         self.assertEqual(result, 0, error)
         return path
 
+    def create_team_convention(self, filename="convention.md"):
+        path = f"team-conventions/guidelines/{filename}"
+        result, _, error = self.run_command(
+            "create",
+            "--path",
+            path,
+            "--id",
+            f"TC-{filename}",
+            "--title",
+            "团队协作约定",
+            "--type",
+            "guideline",
+            "--layer",
+            "layer0t",
+            "--scope",
+            "team",
+            "--source",
+            "团队评审",
+            "--content",
+            "提交前必须完成必要检查。",
+            "--actor",
+            "alice",
+            "--role",
+            "contributor",
+        )
+        self.assertEqual(result, 0, error)
+        return path
+
     def reference(self, path, actor, project="project-a", workflow="flow-a", role="reader"):
         return self.run_command(
             "reference",
@@ -384,16 +412,37 @@ class KnowledgeGovernanceTest(unittest.TestCase):
 
     def test_catalogs_include_personal_and_team_scope(self):
         self.create_personal("catalog-entry.md")
+        self.create_team_convention("catalog-entry.md")
         self.create_team("catalog-entry.md")
         root_catalog = (self.repo / "knowledge-catalog.md").read_text(encoding="utf-8")
         personal_catalog = (
             self.repo / "personal-prefernece/zhangsan/knowledge/catalog.md"
         ).read_text(encoding="utf-8")
         team_catalog = (self.repo / "tech-wiki/catalog.md").read_text(encoding="utf-8")
+        convention_catalog = (self.repo / "team-conventions/catalog.md").read_text(
+            encoding="utf-8"
+        )
 
         self.assertIn("Layer 0-P | 1", root_catalog)
+        self.assertIn("Layer 0-T | 1", root_catalog)
         self.assertIn("`personal`", personal_catalog)
+        self.assertIn("`team`", convention_catalog)
         self.assertIn("`team`", team_catalog)
+
+    def test_layer0t_keeps_legacy_root_documents_outside_structured_governance(self):
+        root = self.repo / "team-conventions"
+        root.mkdir(parents=True)
+        legacy = root / "commit-conventions.md"
+        legacy.write_text("# 既有团队约定\n", encoding="utf-8")
+
+        self.create_team_convention()
+        issues, _actions = governance.lint_entries(
+            self.repo,
+            datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+
+        self.assertFalse(any("commit-conventions.md" in issue for issue in issues))
+        self.assertEqual(legacy.read_text(encoding="utf-8"), "# 既有团队约定\n")
 
     def test_layer1_accepts_type_directories_and_legacy_direction_directories(self):
         result, _, error = self.run_command(

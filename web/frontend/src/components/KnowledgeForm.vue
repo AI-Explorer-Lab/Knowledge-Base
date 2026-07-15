@@ -104,7 +104,7 @@ const layers = computed(() => props.options?.layers ?? [])
 const technicalDirections = computed(() => props.options?.technical_directions ?? [])
 
 const selectedLayer = computed<KnowledgeLayer>(() =>
-  props.draft.scope === 'personal' ? 'layer0p' : (props.draft.layer ?? 'layer1'),
+  props.draft.scope === 'personal' ? 'layer0p' : (props.draft.layer ?? 'layer0t'),
 )
 
 const activeTechnicalDirection = computed<TechnicalDirection | null>(() =>

@@ -1,7 +1,7 @@
 export type Role = 'reader' | 'contributor' | 'maintainer'
 export type MemberStatus = 'active' | 'disabled'
 export type KnowledgeScope = 'personal' | 'team'
-export type KnowledgeLayer = 'layer0p' | 'layer1' | 'layer2' | 'layer3'
+export type KnowledgeLayer = 'layer0p' | 'layer0t' | 'layer1' | 'layer2' | 'layer3'
 export type KnowledgeType = 'model' | 'decision' | 'guideline' | 'pitfall' | 'process'
 export type TechnicalDirection = 'patterns' | 'anti-patterns'
 export type KnowledgeMaturity = 'draft' | 'verified' | 'proven'

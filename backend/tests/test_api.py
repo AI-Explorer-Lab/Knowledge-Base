@@ -67,6 +67,11 @@ def repo(tmp_path: Path) -> Path:
         encoding="utf-8",
     )
     (tmp_path / "tech-wiki").mkdir()
+    (tmp_path / "team-conventions").mkdir()
+    (tmp_path / "team-conventions" / "coding-standards.md").write_text(
+        "# 既有团队规范\n",
+        encoding="utf-8",
+    )
     (tmp_path / "docs" / "knowledge").mkdir(parents=True)
     (tmp_path / "biz-wiki" / "finance").mkdir(parents=True)
     return tmp_path
@@ -356,6 +361,7 @@ def test_personal_preview_create_idempotent_retry_and_by_id_view(repo: Path):
     assert listing_data["total"] == 1
     assert listing_data["counts"] == {
         "layer0p": 1,
+        "layer0t": 0,
         "layer1": 0,
         "layer2": 0,
         "layer3": 0,
@@ -524,6 +530,10 @@ def test_layer2_option_remains_visible_when_no_business_domain_is_configured(rep
     response = client_for(repo, "lisi").get("/api/knowledge/options")
     assert response.status_code == 200
     assert "layer2" in {item["value"] for item in response.json()["layers"]}
+    assert response.json()["layers"][0] == {
+        "value": "layer0t",
+        "label": "Layer 0-T 团队约定",
+    }
     assert response.json()["business_domains"] == []
     assert response.json()["technical_directions"] == [
         {"value": "patterns", "label": "正向模式"},
@@ -598,6 +608,13 @@ def test_only_maintainer_can_create_safe_business_domain(repo: Path):
     ("payload", "expected_id", "path_prefix", "layer_catalog", "layer_summary"),
     [
         (
+            team_payload(layer="layer0t"),
+            "TC-GDL-001",
+            "team-conventions/guidelines/",
+            "team-conventions/catalog.md",
+            "Layer 0-T",
+        ),
+        (
             team_payload(layer="layer1"),
             "TK-GDL-001",
             "tech-wiki/guidelines/",
@@ -656,6 +673,12 @@ def test_team_manual_commit_updates_entry_catalogs_and_log(
     ).read_text(encoding="utf-8")
     audit = (repo / "log.md").read_text(encoding="utf-8")
     assert f"| `lisi` | `create` | `{knowledge['id']}` |" in audit
+
+    listing = client.get("/api/knowledge", params={"layer": payload["layer"]})
+    assert listing.status_code == 200, listing.text
+    assert listing.json()["total"] == 1
+    assert listing.json()["counts"][payload["layer"]] == 1
+    assert listing.json()["items"][0]["id"] == knowledge["id"]
 
 
 def test_preview_token_tampering_and_expiry_are_rejected(
