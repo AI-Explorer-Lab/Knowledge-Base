@@ -5,7 +5,7 @@ import { routeRequiresForbidden } from '@/utils/recovery'
 declare module 'vue-router' {
   interface RouteMeta {
     breadcrumb?: string
-    allowedRoles?: Array<'reader' | 'contributor' | 'maintainer'>
+    allowedRoles?: Array<'reader' | 'contributor' | 'maintainer' | 'super_admin'>
   }
 }
 
@@ -23,7 +23,7 @@ const router = createRouter({
       component: () => import('@/views/KnowledgeCreateView.vue'),
       meta: {
         breadcrumb: '知识治理 / 人工注入',
-        allowedRoles: ['contributor', 'maintainer'],
+        allowedRoles: ['contributor', 'maintainer', 'super_admin'],
       },
     },
     {
@@ -32,7 +32,7 @@ const router = createRouter({
       component: () => import('@/views/KnowledgePreviewView.vue'),
       meta: {
         breadcrumb: '知识治理 / 预览校验',
-        allowedRoles: ['contributor', 'maintainer'],
+        allowedRoles: ['contributor', 'maintainer', 'super_admin'],
       },
     },
     {
@@ -41,7 +41,7 @@ const router = createRouter({
       component: () => import('@/views/KnowledgeCompleteView.vue'),
       meta: {
         breadcrumb: '知识治理 / 完成注入',
-        allowedRoles: ['contributor', 'maintainer'],
+        allowedRoles: ['contributor', 'maintainer', 'super_admin'],
       },
     },
     {
@@ -50,7 +50,7 @@ const router = createRouter({
       component: () => import('@/views/KnowledgeBrowseView.vue'),
       meta: {
         breadcrumb: '知识治理 / 知识浏览',
-        allowedRoles: ['reader', 'contributor', 'maintainer'],
+        allowedRoles: ['reader', 'contributor', 'maintainer', 'super_admin'],
       },
     },
     {
@@ -59,7 +59,16 @@ const router = createRouter({
       component: () => import('@/views/PermissionView.vue'),
       meta: {
         breadcrumb: '团队设置 / 权限管理',
-        allowedRoles: ['maintainer'],
+        allowedRoles: ['maintainer', 'super_admin'],
+      },
+    },
+    {
+      path: '/super-admin',
+      name: 'super-admin',
+      component: () => import('@/views/SuperAdminView.vue'),
+      meta: {
+        breadcrumb: '团队设置 / 超级管理',
+        allowedRoles: ['super_admin'],
       },
     },
     {

@@ -564,6 +564,7 @@ def test_maintainer_can_create_business_domain_and_options_refresh(repo: Path):
         "id": "order",
         "name": "订单",
         "description": "订单履约与交易过程",
+        "status": "active",
     }
 
     options = maintainer.get("/api/knowledge/options")
@@ -994,6 +995,187 @@ def test_member_config_rolls_back_when_audit_fails(repo: Path, monkeypatch):
             MemberCreate(id="new-member", display_name="New", role="reader"),
         )
     assert (repo / ".knowledge-config.yaml").read_text(encoding="utf-8") == before
+
+
+def enable_super_admin(repo: Path) -> None:
+    config = yaml.safe_load((repo / ".knowledge-config.yaml").read_text(encoding="utf-8"))
+    config["members"][0]["role"] = "super_admin"
+    (repo / ".knowledge-config.yaml").write_text(
+        yaml.safe_dump(config, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+
+
+def test_super_admin_role_update_preview_commit_actions_and_audit(repo: Path):
+    enable_super_admin(repo)
+    admin = client_for(repo, "zhangsan")
+    reader = client_for(repo, "wangwu")
+
+    identity = admin.get("/api/me")
+    assert identity.status_code == 200
+    assert identity.json()["member"]["role"] == "super_admin"
+    assert identity.json()["permissions"] == {
+        "can_browse_knowledge": True,
+        "can_create_knowledge": True,
+        "can_manage_members": True,
+        "can_manage_business_domains": True,
+        "can_super_admin": True,
+    }
+    assert reader.get("/api/super-admin/knowledge").status_code == 403
+    assert admin.post(
+        "/api/members",
+        json={"id": "root-two", "display_name": "Root", "role": "super_admin"},
+    ).status_code == 422
+    protected = admin.patch(
+        "/api/members/zhangsan",
+        json={"status": "disabled"},
+    )
+    assert protected.status_code == 403
+    assert protected.json()["detail"]["code"] == "super_admin_config_only"
+
+    preview = admin.post("/api/knowledge/preview", json=team_payload())
+    assert preview.status_code == 200, preview.text
+    created = admin.post(
+        "/api/knowledge/manual",
+        json={**team_payload(), "preview_token": preview.json()["preview_token"]},
+    )
+    assert created.status_code == 201, created.text
+    knowledge_id = created.json()["knowledge"]["id"]
+
+    detail = admin.get(f"/api/super-admin/knowledge/{knowledge_id}")
+    assert detail.status_code == 200, detail.text
+    original = detail.json()["knowledge"]
+    payload = {
+        "scope": "team",
+        "title": "修正后的治理决策",
+        "type": "decision",
+        "tags": ["governance", "corrected"],
+        "source_references": ["超级管理员复核"],
+        "layer": "layer1",
+        "technical_direction": "patterns",
+        "content": "修正后的正文必须重新积累当前版本证据。",
+        "reason": "修正错误的知识类型和正文",
+        "base_digest": original["base_digest"],
+    }
+    update_preview = admin.post(
+        f"/api/super-admin/knowledge/{knowledge_id}/preview",
+        json=payload,
+    )
+    assert update_preview.status_code == 200, update_preview.text
+    assert update_preview.json()["after"]["revision"] == 2
+    assert update_preview.json()["after"]["maturity"] == "draft"
+    assert "relative_path" in update_preview.json()["changed_fields"]
+
+    committed = admin.post(
+        f"/api/super-admin/knowledge/{knowledge_id}/commit",
+        json={**payload, "preview_token": update_preview.json()["preview_token"]},
+        headers={"X-Request-ID": "admin-update-request-001"},
+    )
+    assert committed.status_code == 200, committed.text
+    updated = committed.json()["knowledge"]
+    assert updated["revision"] == 2
+    assert updated["type"] == "decision"
+    assert updated["relative_path"].endswith(f"decisions/{knowledge_id}.md")
+    assert not (repo / original["relative_path"]).exists()
+    assert (repo / updated["relative_path"]).exists()
+
+    replay = admin.post(
+        f"/api/super-admin/knowledge/{knowledge_id}/commit",
+        json={**payload, "preview_token": update_preview.json()["preview_token"]},
+    )
+    assert replay.status_code == 200
+    assert replay.json()["idempotent_replay"] is True
+
+    archived = admin.post(
+        f"/api/super-admin/knowledge/{knowledge_id}/actions",
+        json={
+            "action": "archive",
+            "reason": "该知识暂时不再使用",
+        },
+    )
+    assert archived.status_code == 200, archived.text
+    assert archived.json()["knowledge"]["archived"] is True
+    archived_list = admin.get("/api/super-admin/knowledge", params={"state": "archived"})
+    assert any(item["id"] == knowledge_id for item in archived_list.json()["items"])
+
+    restored = admin.post(
+        f"/api/super-admin/knowledge/{knowledge_id}/actions",
+        json={"action": "restore", "reason": "重新启用该知识"},
+    )
+    assert restored.status_code == 200, restored.text
+    assert restored.json()["knowledge"]["archived"] is False
+
+    domain_patch = admin.patch(
+        "/api/business-domains/finance",
+        json={"name": "财务", "status": "disabled"},
+    )
+    assert domain_patch.status_code == 200, domain_patch.text
+    assert domain_patch.json()["business_domain"]["status"] == "disabled"
+    options = admin.get("/api/knowledge/options")
+    assert options.status_code == 200
+    assert next(item for item in options.json()["business_domains"] if item["id"] == "finance")["status"] == "disabled"
+
+    audit = admin.get("/api/super-admin/audit", params={"q": knowledge_id})
+    assert audit.status_code == 200, audit.text
+    actions = {item["action"] for item in audit.json()["items"]}
+    assert "admin-knowledge-move" in actions
+    assert "admin-governance-action" in actions
+    log = (repo / "log.md").read_text(encoding="utf-8")
+    assert "admin-update-request-001" in log
+
+
+def test_super_admin_edits_personal_knowledge_without_forging_evidence(repo: Path):
+    enable_super_admin(repo)
+    personal_path = (
+        repo
+        / "personal-prefernece"
+        / "lisi"
+        / "knowledge"
+        / "guidelines"
+        / "PK-LS-GDL-001.md"
+    )
+    governance.create_knowledge_entry(
+        repo=repo,
+        path=personal_path,
+        knowledge_id="PK-LS-GDL-001",
+        title="李四的排查经验",
+        knowledge_type="guideline",
+        layer="layer0p",
+        scope="personal",
+        sources=["李四复盘"],
+        content="先检查服务日志。",
+        actor="lisi",
+        role="contributor",
+        owner_id="lisi",
+    )
+    admin = client_for(repo, "zhangsan")
+    detail = admin.get("/api/super-admin/knowledge/PK-LS-GDL-001").json()["knowledge"]
+    payload = {
+        "scope": "personal",
+        "owner_id": "lisi",
+        "title": "李四的服务排查经验",
+        "type": "guideline",
+        "tags": ["debug"],
+        "source_references": ["李四复盘"],
+        "content": "先检查服务日志，再确认依赖状态。",
+        "reason": "补全排查步骤",
+        "base_digest": detail["base_digest"],
+    }
+    preview = admin.post(
+        "/api/super-admin/knowledge/PK-LS-GDL-001/preview",
+        json=payload,
+    )
+    assert preview.status_code == 200, preview.text
+    committed = admin.post(
+        "/api/super-admin/knowledge/PK-LS-GDL-001/commit",
+        json={**payload, "preview_token": preview.json()["preview_token"]},
+    )
+    assert committed.status_code == 200, committed.text
+    metadata, _body = governance.read_entry(personal_path)
+    assert metadata["owner_id"] == "lisi"
+    assert metadata["evidence"]["contributors"] == ["lisi"]
+    assert metadata["evidence"]["references"] == []
+    assert metadata["evidence"]["validations"] == []
 
 
 @pytest.mark.asyncio

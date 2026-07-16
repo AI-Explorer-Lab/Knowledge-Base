@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, reactive, watch } from 'vue'
 import { ChevronDown, LockKeyhole, X } from 'lucide-vue-next'
-import type { Member, MemberStatus, Role } from '@/types'
+import type { AssignableRole, Member, MemberStatus } from '@/types'
 
 export interface MemberFormValue {
   id: string
   display_name: string
-  role: Role
+  role: AssignableRole
   status: MemberStatus
 }
 
@@ -97,7 +97,7 @@ function submit() {
               <legend>角色</legend>
               <div class="segmented-control role-control">
                 <button
-                  v-for="role in (['reader', 'contributor', 'maintainer'] as Role[])"
+                  v-for="role in (['reader', 'contributor', 'maintainer'] as AssignableRole[])"
                   :key="role"
                   type="button"
                   :class="{ selected: form.role === role, [`role-${role}`]: true }"

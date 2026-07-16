@@ -28,6 +28,7 @@ class BusinessDomainResponse(ResponseModel):
     id: str
     name: str
     description: str
+    status: Literal["active", "disabled"] = "active"
 
 
 class KnowledgeOptionsResponse(ResponseModel):
@@ -123,6 +124,53 @@ class CreateKnowledgeResponse(ResponseModel):
 
 class KnowledgeFileResponse(ResponseModel):
     knowledge: Dict[str, Any]
+
+
+class SuperAdminKnowledgeListResponse(ResponseModel):
+    items: List[Dict[str, Any]]
+    counts: Dict[str, int]
+    total: int
+
+
+class SuperAdminKnowledgeDetailResponse(ResponseModel):
+    knowledge: Dict[str, Any]
+
+
+class SuperAdminPreviewResponse(ResponseModel):
+    before: Dict[str, Any]
+    after: Dict[str, Any]
+    changed_fields: List[str]
+    consequences: List[str]
+    checks: List[PreviewCheck]
+    preview_token: str
+    expires_at: str
+
+
+class SuperAdminCommitResponse(ResponseModel):
+    knowledge: Dict[str, Any]
+    writes: List[WriteResult]
+    audit_logged: bool
+    idempotent_replay: bool = False
+
+
+class SuperAdminActionResponse(ResponseModel):
+    knowledge: Dict[str, Any]
+    action: str
+    audit_logged: bool
+
+
+class AuditRecordResponse(ResponseModel):
+    timestamp: str
+    actor: str
+    action: str
+    target_id: str
+    detail: Any
+    session: str
+
+
+class AuditListResponse(ResponseModel):
+    items: List[AuditRecordResponse]
+    total: int
 
 
 class KnowledgeListItem(ResponseModel):

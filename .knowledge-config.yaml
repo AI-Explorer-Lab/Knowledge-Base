@@ -2,7 +2,7 @@ version: 1
 members:
 - id: zhangsan
   display_name: 张三
-  role: maintainer
+  role: super_admin
   status: active
 - id: fanwei
   display_name: 范为

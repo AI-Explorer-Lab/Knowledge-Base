@@ -59,4 +59,6 @@ class IdentityService:
 
 def current_member(request: Request) -> Dict[str, str]:
     actor = request.app.state.identity.resolve_actor(request)
-    return request.app.state.members.get_member(actor)
+    member = request.app.state.members.get_member(actor)
+    request.state.actor = member["id"]
+    return member

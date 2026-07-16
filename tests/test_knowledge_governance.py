@@ -496,6 +496,71 @@ class KnowledgeGovernanceTest(unittest.TestCase):
         self.assertEqual(result, 1)
         self.assertIn("guidelines/", error)
 
+    def test_admin_revision_preserves_old_evidence_but_only_current_revision_counts(self):
+        relative = self.create_team("revisioned.md")
+        referenced, _, error = self.reference(relative, "alice")
+        self.assertEqual(referenced, 0, error)
+        validated, _, error = self.validate(relative, "bob")
+        self.assertEqual(validated, 0, error)
+        path = self.repo / relative
+        metadata, body = governance.read_entry(path)
+        self.assertEqual(metadata["revision"], 1)
+        self.assertEqual(metadata["maturity"], "verified")
+        self.assertEqual(metadata["evidence"]["references"][0]["revision"], 1)
+        self.assertEqual(metadata["evidence"]["validations"][0]["revision"], 1)
+
+        updated, written_path, action = governance.update_knowledge_entry(
+            repo=self.repo,
+            source_path=path,
+            target_path=path,
+            updates={
+                "title": "团队技术约定（修订）",
+                "type": metadata["type"],
+                "layer": metadata["layer"],
+                "scope": governance.metadata_scope(metadata),
+                "tags": metadata["tags"],
+                "source_references": metadata["source_references"],
+                "technical_direction": metadata.get("technical_direction"),
+                "owner_id": metadata.get("owner_id"),
+            },
+            content="治理脚本仍只使用 Python 标准库。",
+            actor="root",
+            role="super_admin",
+            reason="修订知识正文",
+            request_id="revision-test-request",
+        )
+        self.assertEqual(action, "admin-knowledge-update")
+        self.assertEqual(written_path, path.resolve())
+        self.assertEqual(updated["revision"], 2)
+        self.assertEqual(updated["maturity"], "draft")
+        self.assertFalse(governance.eligible_for_verified(updated))
+        self.assertEqual(len(updated["evidence"]["references"]), 1)
+        self.assertEqual(len(updated["evidence"]["validations"]), 1)
+
+        referenced, _, error = self.reference(relative, "alice", role="super_admin")
+        self.assertEqual(referenced, 0, error)
+        validated, _, error = self.run_command(
+            "validate",
+            relative,
+            "--project",
+            "project-a",
+            "--workflow",
+            "flow-a",
+            "--result",
+            "passed",
+            "--source",
+            "修订后复核",
+            "--actor",
+            "bob",
+            "--role",
+            "super_admin",
+        )
+        self.assertEqual(validated, 0, error)
+        current = self.read_metadata(relative)
+        self.assertEqual(current["maturity"], "verified")
+        self.assertEqual(current["evidence"]["references"][-1]["revision"], 2)
+        self.assertEqual(current["evidence"]["validations"][-1]["revision"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,5 @@
-export type Role = 'reader' | 'contributor' | 'maintainer'
+export type AssignableRole = 'reader' | 'contributor' | 'maintainer'
+export type Role = AssignableRole | 'super_admin'
 export type MemberStatus = 'active' | 'disabled'
 export type KnowledgeScope = 'personal' | 'team'
 export type KnowledgeLayer = 'layer0p' | 'layer0t' | 'layer1' | 'layer2' | 'layer3'
@@ -20,6 +21,7 @@ export interface CurrentUserResponse {
     can_create_knowledge: boolean
     can_manage_members: boolean
     can_manage_business_domains: boolean
+    can_super_admin: boolean
   }
   environment?: string
 }
@@ -33,6 +35,7 @@ export interface BusinessDomain {
   id: string
   name: string
   description: string
+  status: 'active' | 'disabled'
 }
 
 export interface KnowledgeOptions {
@@ -124,6 +127,9 @@ export interface CreateKnowledgeResponse {
 
 export interface KnowledgeFile extends CreatedKnowledge {
   content: string
+  revision?: number
+  updated_at?: string | null
+  updated_by?: string | null
 }
 
 export interface KnowledgeListItem extends Omit<CreatedKnowledge, 'source_references'> {
@@ -138,6 +144,83 @@ export interface KnowledgeListResponse {
 
 export interface MembersResponse {
   members: Member[]
+}
+
+export interface SuperAdminKnowledge extends KnowledgeFile {
+  domain: string | null
+  archived: boolean
+  conflict_status: 'none' | 'suspected' | 'confirmed' | 'resolved'
+  promotion: Record<string, unknown>
+  evidence: Record<string, unknown>
+  revision: number
+  updated_at: string | null
+  updated_by: string | null
+  base_digest: string
+}
+
+export interface SuperAdminKnowledgeListItem extends Omit<SuperAdminKnowledge, 'content' | 'evidence' | 'promotion'> {}
+
+export interface SuperAdminKnowledgeListResponse {
+  items: SuperAdminKnowledgeListItem[]
+  counts: { active: number; archived: number }
+  total: number
+}
+
+export interface SuperAdminKnowledgeInput {
+  scope: KnowledgeScope
+  owner_id?: string
+  title: string
+  type: KnowledgeType
+  tags: string[]
+  source_references: string[]
+  layer?: Exclude<KnowledgeLayer, 'layer0p'>
+  technical_direction?: TechnicalDirection
+  domain?: string
+  content: string
+  reason: string
+  base_digest: string
+  owner_confirmed_by?: string
+}
+
+export interface SuperAdminPreviewResponse {
+  before: SuperAdminKnowledge
+  after: SuperAdminKnowledge
+  changed_fields: string[]
+  consequences: string[]
+  checks: PreviewCheck[]
+  preview_token: string
+  expires_at: string
+}
+
+export interface SuperAdminCommitResponse {
+  knowledge: SuperAdminKnowledge
+  writes: CreateKnowledgeResponse['writes']
+  audit_logged: boolean
+  idempotent_replay: boolean
+}
+
+export type SuperAdminAction =
+  | 'approve_proven'
+  | 'propose_promotion'
+  | 'approve_promotion'
+  | 'rollback_layer'
+  | 'archive'
+  | 'restore'
+  | 'mark_conflict'
+  | 'resolve_conflict'
+
+export interface AuditRecord {
+  timestamp: string
+  actor: string
+  action: string
+  target_id: string
+  detail: unknown
+  session: string
+}
+
+export interface AuditListResponse {
+  items: AuditRecord[]
+  total: number
 }
 
 export interface FieldError {

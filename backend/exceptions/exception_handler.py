@@ -25,6 +25,7 @@ def install_exception_handlers(app: FastAPI) -> None:
         request: Request,
         exc: BusinessException,
     ) -> JSONResponse:
+        request.state.error_code = exc.code
         if is_auth_error(exc):
             return auth_error_response(request, exc, _headers(request))
         detail = exc.detail()
@@ -40,6 +41,7 @@ def install_exception_handlers(app: FastAPI) -> None:
         request: Request,
         exc: RequestValidationError,
     ) -> JSONResponse:
+        request.state.error_code = "validation_error"
         field_errors: Dict[str, str] = {}
         for error in exc.errors():
             location = [str(item) for item in error.get("loc", ()) if item != "body"]
@@ -60,6 +62,7 @@ def install_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def handle_unexpected_error(request: Request, _exc: Exception) -> JSONResponse:
+        request.state.error_code = "internal_error"
         return JSONResponse(
             status_code=500,
             content={

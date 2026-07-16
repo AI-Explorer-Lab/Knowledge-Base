@@ -41,7 +41,7 @@ class KnowledgeTemplateService:
         member: Dict[str, str],
         technical_direction: Optional[TechnicalDirection] = None,
     ) -> Dict[str, object]:
-        self.members.require_role(member, "contributor", "maintainer")
+        self.members.require_role(member, "contributor", "maintainer", "super_admin")
         base_content = self._read(TEMPLATE_FILES[knowledge_type])
         content = base_content
         if technical_direction is not None:

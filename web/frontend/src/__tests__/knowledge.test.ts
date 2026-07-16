@@ -25,7 +25,7 @@ const options: KnowledgeOptions = {
     { value: 'patterns', label: '正向模式' },
     { value: 'anti-patterns', label: '反模式' },
   ],
-  business_domains: [{ id: 'order', name: '订单', description: '订单履约' }],
+  business_domains: [{ id: 'order', name: '订单', description: '订单履约', status: 'active' }],
   preview_ttl_seconds: 600,
 }
 

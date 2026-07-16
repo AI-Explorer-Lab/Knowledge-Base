@@ -5,6 +5,7 @@ import {
   BookOpen,
   ChevronLeft,
   Database,
+  Crown,
   LibraryBig,
   Menu,
   PenLine,
@@ -28,6 +29,7 @@ const mobileOpen = ref(false)
 const canCreate = computed(() => identity.value?.permissions.can_create_knowledge ?? false)
 const canBrowse = computed(() => identity.value?.permissions.can_browse_knowledge ?? false)
 const canManage = computed(() => identity.value?.permissions.can_manage_members ?? false)
+const canSuperAdmin = computed(() => identity.value?.permissions.can_super_admin ?? false)
 const injectionRouteNames = new Set(['knowledge-create', 'knowledge-preview', 'knowledge-completed'])
 const injectionActive = computed(() => injectionRouteNames.has(String(route.name)))
 const avatarText = computed(() => identity.value?.member.display_name.trim().slice(0, 1) || '用')
@@ -65,6 +67,17 @@ function closeMobileNavigation() {
           <span>知识注入</span>
         </RouterLink>
         <RouterLink
+          v-if="canSuperAdmin"
+          to="/super-admin"
+          class="nav-item"
+          :class="{ active: route.name === 'super-admin' }"
+          title="超级管理"
+          @click="closeMobileNavigation"
+        >
+          <Crown :size="23" />
+          <span>超级管理</span>
+        </RouterLink>
+        <RouterLink
           v-if="canBrowse"
           to="/knowledge/browse"
           class="nav-item"
@@ -86,7 +99,7 @@ function closeMobileNavigation() {
           <ShieldCheck :size="23" />
           <span>权限管理</span>
         </RouterLink>
-        <div v-if="!canCreate && !canBrowse && !canManage" class="nav-item nav-item-muted">
+        <div v-if="!canCreate && !canBrowse && !canManage && !canSuperAdmin" class="nav-item nav-item-muted">
           <Database :size="22" />
           <span>只读访问</span>
         </div>

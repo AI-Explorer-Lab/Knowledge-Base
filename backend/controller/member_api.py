@@ -22,7 +22,7 @@ def list_members(
     member: Dict[str, str] = Depends(current_member),
     service: MemberService = Depends(member_service),
 ) -> Dict:
-    service.require_role(member, "maintainer")
+    service.require_role(member, "maintainer", "super_admin")
     return {"members": service.list_members()}
 
 

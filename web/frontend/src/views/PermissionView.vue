@@ -35,6 +35,7 @@ const roleLabels = {
   reader: 'reader',
   contributor: 'contributor',
   maintainer: 'maintainer',
+  super_admin: 'super_admin',
 }
 
 onMounted(loadMembers)
@@ -57,6 +58,10 @@ function openCreate() {
 }
 
 function openEdit(member: Member) {
+  if (member.role === 'super_admin') {
+    pushToast('超级管理员只能通过系统配置修改', 'error')
+    return
+  }
   selectedMember.value = member
   drawerOpen.value = true
 }
@@ -119,8 +124,12 @@ async function confirmSave() {
 }
 
 function requestDisable(member: Member) {
+  if (member.role === 'super_admin') {
+    pushToast('超级管理员只能通过系统配置修改', 'error')
+    return
+  }
   selectedMember.value = member
-  pendingForm.value = { ...member, status: 'disabled' }
+  pendingForm.value = { ...member, role: member.role, status: 'disabled' }
   confirmOpen.value = true
 }
 
@@ -171,10 +180,10 @@ function avatarColor(index: number) {
               <td><span class="role-pill" :class="`role-${member.role}`">{{ roleLabels[member.role] }}</span></td>
               <td><span class="member-status"><i :class="{ disabled: member.status === 'disabled' }" />{{ member.status === 'active' ? '已启用' : '已停用' }}</span></td>
               <td class="member-actions">
-                <button class="text-button" type="button" @click="openEdit(member)">修改角色</button>
+                <button class="text-button" type="button" :disabled="member.role === 'super_admin'" @click="openEdit(member)">{{ member.role === 'super_admin' ? '系统配置' : '修改角色' }}</button>
                 <span v-if="member.status === 'active' && member.id !== identity?.member.id" class="action-divider" />
                 <button
-                  v-if="member.status === 'active' && member.id !== identity?.member.id"
+                  v-if="member.status === 'active' && member.id !== identity?.member.id && member.role !== 'super_admin'"
                   class="text-button danger-text"
                   type="button"
                   @click="requestDisable(member)"

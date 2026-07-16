@@ -4,7 +4,7 @@ from typing import Dict
 
 from fastapi import APIRouter, Depends, Request, status
 
-from backend.domain.req import BusinessDomainCreate
+from backend.domain.req import BusinessDomainCreate, BusinessDomainPatch
 from backend.domain.res import BusinessDomainMutationResponse
 from backend.middlewares.auth_dependency import current_member
 from backend.service.business_domain_service import BusinessDomainService
@@ -28,3 +28,13 @@ def create_business_domain(
     service: BusinessDomainService = Depends(business_domain_service),
 ) -> Dict:
     return {"business_domain": service.create(member, payload)}
+
+
+@router.patch("/{domain_id}", response_model=BusinessDomainMutationResponse)
+def patch_business_domain(
+    domain_id: str,
+    payload: BusinessDomainPatch,
+    member: Dict[str, str] = Depends(current_member),
+    service: BusinessDomainService = Depends(business_domain_service),
+) -> Dict:
+    return {"business_domain": service.patch(member, domain_id, payload)}
