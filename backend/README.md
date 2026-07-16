@@ -4,7 +4,15 @@ FastAPI 后端负责可信身份、人工知识注入、成员权限管理、超
 
 ## 本地启动
 
-要求 Python 3.12，并从知识库根目录执行：
+安装依赖后，推荐从知识库根目录一键启动前后端：
+
+```text
+./start.sh
+```
+
+浏览器统一访问 `http://127.0.0.1:8888`，`/api` 请求会转发给仅供本机使用的后端进程。按 `Ctrl+C` 会同时停止前后端。
+
+如需单独调试后端，要求 Python 3.12，并从知识库根目录执行：
 
 ```text
 python -m pip install -r backend/requirements.txt
