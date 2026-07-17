@@ -122,8 +122,30 @@ class CreateKnowledgeResponse(ResponseModel):
     idempotent_replay: bool = False
 
 
+class KnowledgeReviewResponse(ResponseModel):
+    next_review_at: str
+    overdue: bool
+
+
+class KnowledgeFileItem(ResponseModel):
+    id: str
+    title: str
+    type: KnowledgeType
+    scope: KnowledgeScope
+    owner_id: Optional[str]
+    layer: KnowledgeLayer
+    technical_direction: Optional[TechnicalDirection]
+    maturity: KnowledgeMaturity
+    created_at: str
+    tags: List[str]
+    source_references: List[str]
+    relative_path: str
+    content: str
+    review: KnowledgeReviewResponse
+
+
 class KnowledgeFileResponse(ResponseModel):
-    knowledge: Dict[str, Any]
+    knowledge: KnowledgeFileItem
 
 
 class SuperAdminKnowledgeListResponse(ResponseModel):
@@ -186,6 +208,7 @@ class KnowledgeListItem(ResponseModel):
     tags: List[str]
     relative_path: str
     excerpt: str
+    review: KnowledgeReviewResponse
 
 
 class KnowledgeListResponse(ResponseModel):

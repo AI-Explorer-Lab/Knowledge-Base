@@ -346,10 +346,18 @@ def test_personal_preview_create_idempotent_retry_and_by_id_view(repo: Path):
     own_view = lisi.get(f"/api/knowledge/{result['knowledge']['id']}")
     assert own_view.status_code == 200
     assert own_view.json()["knowledge"]["content"] == personal_payload()["content"]
+    own_review = own_view.json()["knowledge"]["review"]
+    assert own_review["next_review_at"].endswith("+08:00")
+    assert own_review["overdue"] is False
+    assert (
+        governance.parse_time(own_review["next_review_at"])
+        - governance.parse_time(result["knowledge"]["created_at"])
+    ).days == 30
     teammate_view = client_for(repo, "zhangsan").get(
         f"/api/knowledge/{result['knowledge']['id']}"
     )
     assert teammate_view.status_code == 200
+    assert teammate_view.json()["knowledge"]["review"] == own_review
     assert path.read_bytes() == content_before_view
     assert path.stat().st_mtime_ns == mtime_before_view
     assert governance.read_entry(path)[0]["evidence"] == evidence_before_view
@@ -379,6 +387,7 @@ def test_personal_preview_create_idempotent_retry_and_by_id_view(repo: Path):
         "tags": ["api", "debug"],
         "relative_path": result["knowledge"]["relative_path"],
         "excerpt": personal_payload()["content"],
+        "review": own_review,
     }
     search = reader.get("/api/knowledge", params={"q": "端口排查"})
     assert search.status_code == 200

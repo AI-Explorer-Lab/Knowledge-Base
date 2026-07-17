@@ -125,15 +125,25 @@ export interface CreateKnowledgeResponse {
   audit_logged: boolean
 }
 
-export interface KnowledgeFile extends CreatedKnowledge {
+export interface KnowledgeReview {
+  next_review_at: string
+  overdue: boolean
+}
+
+export interface KnowledgeFileContent extends CreatedKnowledge {
   content: string
   revision?: number
   updated_at?: string | null
   updated_by?: string | null
 }
 
+export interface KnowledgeFile extends KnowledgeFileContent {
+  review: KnowledgeReview
+}
+
 export interface KnowledgeListItem extends Omit<CreatedKnowledge, 'source_references'> {
   excerpt: string
+  review: KnowledgeReview
 }
 
 export interface KnowledgeListResponse {
@@ -146,7 +156,7 @@ export interface MembersResponse {
   members: Member[]
 }
 
-export interface SuperAdminKnowledge extends KnowledgeFile {
+export interface SuperAdminKnowledge extends KnowledgeFileContent {
   domain: string | null
   archived: boolean
   conflict_status: 'none' | 'suspected' | 'confirmed' | 'resolved'

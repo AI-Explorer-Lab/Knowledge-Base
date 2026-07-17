@@ -5,8 +5,10 @@ import type {
   KnowledgeDraft,
   KnowledgeFile,
   KnowledgeLayer,
+  KnowledgeMaturity,
   KnowledgeListResponse,
   KnowledgeOptions,
+  KnowledgeReview,
   KnowledgeTemplate,
   KnowledgeType,
   Member,
@@ -27,6 +29,18 @@ import type {
 import { ApiError } from '@/types'
 
 const wait = (milliseconds = 180) => new Promise((resolve) => globalThis.setTimeout(resolve, milliseconds))
+
+function mockKnowledgeReview(baseAt: string, maturity: KnowledgeMaturity): KnowledgeReview {
+  const reviewDays = maturity === 'proven' ? 60 : 30
+  const nextReview = new Date(Date.parse(baseAt) + reviewDays * 24 * 60 * 60 * 1000)
+  const beijingTime = new Date(nextReview.getTime() + 8 * 60 * 60 * 1000)
+    .toISOString()
+    .replace('Z', '+08:00')
+  return {
+    next_review_at: beijingTime,
+    overdue: Date.now() >= nextReview.getTime(),
+  }
+}
 
 const members: Member[] = [
   { id: 'zhangsan', display_name: '张三', role: 'super_admin', status: 'active' },
@@ -50,6 +64,7 @@ const seededFiles: KnowledgeFile[] = [
     source_references: ['个人调试复盘'],
     relative_path: 'personal-prefernece/zhangsan/knowledge/guidelines/PK-ZS-GDL-001.md',
     content: '启动服务前，先确认目标端口没有被占用，并检查服务监听地址。',
+    review: mockKnowledgeReview('2026-07-12T10:20:00Z', 'draft'),
   },
   {
     id: 'TC-GDL-001',
@@ -65,6 +80,7 @@ const seededFiles: KnowledgeFile[] = [
     source_references: ['团队协作约定'],
     relative_path: 'team-conventions/guidelines/TC-GDL-001.md',
     content: '提交信息需要说明变更目的，并保持一次提交只处理一个清晰主题。',
+    review: mockKnowledgeReview('2026-07-12T09:10:00Z', 'verified'),
   },
   {
     id: 'TK-GDL-001',
@@ -80,6 +96,7 @@ const seededFiles: KnowledgeFile[] = [
     source_references: ['团队架构评审'],
     relative_path: 'tech-wiki/patterns/TK-GDL-001.md',
     content: '所有人工知识在写入前都必须经过元数据、路径、权限和索引校验。',
+    review: mockKnowledgeReview('2026-07-11T08:40:00Z', 'verified'),
   },
   {
     id: 'PJ-DEC-001',
@@ -95,6 +112,7 @@ const seededFiles: KnowledgeFile[] = [
     source_references: ['项目复盘'],
     relative_path: 'docs/knowledge/decisions/PJ-DEC-001.md',
     content: '项目知识按决策、指南和流程拆分，避免把阶段性信息混入稳定技术规范。',
+    review: mockKnowledgeReview('2026-07-09T03:15:00Z', 'proven'),
   },
 ]
 const createdFiles = new Map<string, KnowledgeFile>(
@@ -470,6 +488,7 @@ export async function mockCreateKnowledge(
     source_references: response.preview.source_references,
     relative_path: response.preview.relative_path,
     content: draft.content,
+    review: mockKnowledgeReview(response.preview.created_at, response.preview.maturity),
   })
   return {
     knowledge: {
@@ -604,8 +623,9 @@ function mockBaseDigest(file: KnowledgeFile): string {
 }
 
 function asSuperAdminKnowledge(file: KnowledgeFile): SuperAdminKnowledge {
+  const { review: _review, ...knowledge } = structuredClone(file)
   return {
-    ...structuredClone(file),
+    ...knowledge,
     domain: mockDomainFor(file),
     archived: archivedKnowledge.has(file.id),
     conflict_status: 'none',
@@ -709,6 +729,7 @@ export async function mockPreviewSuperAdminKnowledge(
   }
   const before = asSuperAdminKnowledge(file)
   const nextRevision = (file.revision ?? 1) + 1
+  const updatedAt = new Date().toISOString()
   const next: KnowledgeFile = {
     ...file,
     title: payload.title,
@@ -723,8 +744,9 @@ export async function mockPreviewSuperAdminKnowledge(
     maturity: 'draft',
     relative_path: mockAdminTargetPath(knowledgeId, payload),
     revision: nextRevision,
-    updated_at: new Date().toISOString(),
+    updated_at: updatedAt,
     updated_by: 'zhangsan',
+    review: mockKnowledgeReview(updatedAt, 'draft'),
   }
   const after = asSuperAdminKnowledge(next)
   const changedFields = ['title', 'type', 'tags', 'source_references', 'content', 'relative_path']
@@ -761,7 +783,10 @@ export async function mockCommitSuperAdminKnowledge(
   }
   const response = await mockPreviewSuperAdminKnowledge(knowledgeId, payload)
   const next = response.after
-  createdFiles.set(knowledgeId, structuredClone(next))
+  createdFiles.set(knowledgeId, {
+    ...structuredClone(next),
+    review: mockKnowledgeReview(next.updated_at ?? next.created_at, next.maturity),
+  })
   adminPreviewTokens.delete(previewToken)
   addMockAudit('admin-knowledge-update', knowledgeId, { reason: payload.reason, revision: next.revision })
   return {

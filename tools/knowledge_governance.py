@@ -18,7 +18,7 @@ import re
 import sys
 import tempfile
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
 
@@ -40,12 +40,13 @@ CONFLICT_STATES = {"none", "suspected", "confirmed", "resolved"}
 VALIDATION_RESULTS = {"passed", "failed"}
 ROLES = {"reader", "contributor", "maintainer", "super_admin", "system"}
 
-PROVEN_DECAY_DAYS = 365
-VERIFIED_DECAY_DAYS = 180
-DRAFT_ARCHIVE_DAYS = 180
+PROVEN_DECAY_DAYS = 60
+VERIFIED_DECAY_DAYS = 30
+DRAFT_ARCHIVE_DAYS = 30
 LINT_REMINDER_DAYS = 30
 LINT_WORKFLOW_INTERVAL = 10
 STATE_FILE = ".knowledge-governance-state.json"
+BEIJING_TIMEZONE = timezone(timedelta(hours=8))
 
 METADATA_PATTERN = re.compile(
     r"\A```knowledge-metadata[ \t]*\n(?P<json>.*?)\n```[ \t]*(?:\n|\Z)",
@@ -617,6 +618,29 @@ def last_reference_time(metadata: Dict[str, Any]) -> datetime:
     if candidates:
         return max(candidates)
     return parse_time(metadata.get("updated_at") or metadata["created_at"])
+
+
+def knowledge_review(metadata: Dict[str, Any], as_of: datetime) -> Dict[str, Any]:
+    """Return the derived review deadline shared by API reads and lifecycle Lint."""
+
+    maturity = metadata.get("maturity")
+    review_days = {
+        "draft": DRAFT_ARCHIVE_DAYS,
+        "verified": VERIFIED_DECAY_DAYS,
+        "proven": PROVEN_DECAY_DAYS,
+    }
+    if maturity not in review_days:
+        raise GovernanceError(f"未知成熟度，无法计算 review 时间：{maturity}")
+    if as_of.tzinfo is None or as_of.utcoffset() is None:
+        raise GovernanceError("review 计算时间必须包含时区")
+
+    next_review_at = last_reference_time(metadata) + timedelta(days=review_days[maturity])
+    return {
+        "next_review_at": next_review_at.astimezone(BEIJING_TIMEZONE).isoformat(
+            timespec="seconds"
+        ),
+        "overdue": as_of.astimezone(timezone.utc) >= next_review_at,
+    }
 
 
 def touch_contributor(metadata: Dict[str, Any], actor: str) -> None:
@@ -1647,21 +1671,22 @@ def lint_entries(repo: Path, as_of: datetime) -> Tuple[List[str], List[Tuple[Pat
         last_reference = last_reference_time(metadata)
         age_days = (as_of - last_reference).days
         maturity = metadata["maturity"]
+        review = knowledge_review(metadata, as_of)
         if (
             maturity == "verified"
-            and age_days < VERIFIED_DECAY_DAYS
+            and not review["overdue"]
             and eligible_for_proven(metadata)
         ):
             issues.append(f"PROVEN_REVIEW {relative}: 已满足 proven 条件，等待 Maintainer 审批")
-        if maturity == "proven" and age_days >= PROVEN_DECAY_DAYS:
+        if maturity == "proven" and review["overdue"]:
             issues.append(f"DECAY {relative}: proven 已 {age_days} 天未引用，应降为 verified")
             actions.append((path, "verified"))
-        elif maturity == "verified" and age_days >= VERIFIED_DECAY_DAYS:
+        elif maturity == "verified" and review["overdue"]:
             issues.append(f"DECAY {relative}: verified 已 {age_days} 天未引用，应降为 draft")
             actions.append((path, "draft"))
         elif (
             maturity == "draft"
-            and age_days >= DRAFT_ARCHIVE_DAYS
+            and review["overdue"]
         ):
             issues.append(f"ARCHIVE_DUE {relative}: draft 已 {age_days} 天未引用")
             actions.append((path, "archive"))

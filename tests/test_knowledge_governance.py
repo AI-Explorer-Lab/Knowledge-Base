@@ -291,7 +291,49 @@ class KnowledgeGovernanceTest(unittest.TestCase):
         self.assertEqual(restored, 0, error)
         self.assertEqual(self.read_metadata(path)["evidence"]["references"], [])
 
-    def test_draft_is_due_for_archive_after_six_months_without_reference(self):
+    def test_review_uses_effective_reference_and_returns_beijing_time(self):
+        path = self.create_personal("review.md")
+        metadata = self.read_metadata(path)
+        metadata["created_at"] = "2026-01-01T00:00:00Z"
+        metadata["evidence"]["references"] = [
+            {
+                "project_id": "project-a",
+                "workflow_id": "flow-a",
+                "contributor": "zhangsan",
+                "referenced_at": "2026-01-05T00:00:00Z",
+                "used_in": "IMPLEMENT",
+            },
+            {
+                "project_id": "project-b",
+                "workflow_id": "flow-b",
+                "contributor": "lisi",
+                "referenced_at": "2026-01-20T00:00:00Z",
+                "used_in": "IMPLEMENT",
+            },
+        ]
+
+        before_due = governance.knowledge_review(
+            metadata,
+            datetime(2026, 2, 3, 23, 59, 59, tzinfo=timezone.utc),
+        )
+        at_due = governance.knowledge_review(
+            metadata,
+            datetime(2026, 2, 4, tzinfo=timezone.utc),
+        )
+
+        self.assertEqual(before_due["next_review_at"], "2026-02-04T08:00:00+08:00")
+        self.assertFalse(before_due["overdue"])
+        self.assertTrue(at_due["overdue"])
+
+        metadata["maturity"] = "proven"
+        proven = governance.knowledge_review(
+            metadata,
+            datetime(2026, 3, 6, tzinfo=timezone.utc),
+        )
+        self.assertEqual(proven["next_review_at"], "2026-03-06T08:00:00+08:00")
+        self.assertTrue(proven["overdue"])
+
+    def test_draft_is_due_for_archive_after_thirty_days_without_reference(self):
         path = self.create_personal("stale.md")
         absolute_path = self.repo / path
         metadata, body = governance.read_entry(absolute_path)
@@ -300,7 +342,7 @@ class KnowledgeGovernanceTest(unittest.TestCase):
 
         issues, actions = governance.lint_entries(
             self.repo,
-            datetime(2025, 7, 2, tzinfo=timezone.utc),
+            datetime(2025, 1, 31, tzinfo=timezone.utc),
         )
         self.assertTrue(any(item.startswith("ARCHIVE_DUE") for item in issues))
         self.assertIn((absolute_path, "archive"), actions)
@@ -339,11 +381,11 @@ class KnowledgeGovernanceTest(unittest.TestCase):
 
         _, verified_actions = governance.lint_entries(
             self.repo,
-            datetime(2025, 7, 2, tzinfo=timezone.utc),
+            datetime(2025, 1, 31, tzinfo=timezone.utc),
         )
         _, proven_actions = governance.lint_entries(
             self.repo,
-            datetime(2025, 1, 2, tzinfo=timezone.utc),
+            datetime(2024, 3, 1, tzinfo=timezone.utc),
         )
         self.assertIn((self.repo / verified_path, "draft"), verified_actions)
         self.assertIn((self.repo / proven_path, "verified"), proven_actions)

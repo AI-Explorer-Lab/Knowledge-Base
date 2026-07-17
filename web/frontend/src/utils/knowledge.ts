@@ -88,3 +88,7 @@ export function formatKnowledgeTime(value?: string) {
     hour12: false,
   }).format(date).replaceAll('/', '-').replace(',', '')
 }
+
+export function formatReviewStatus(overdue: boolean) {
+  return overdue ? '已到期' : ''
+}

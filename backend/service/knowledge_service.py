@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -562,6 +563,7 @@ class KnowledgeService:
         }
         normalized_query = query.strip().casefold()
         items: List[Dict[str, Any]] = []
+        as_of = datetime.now(timezone.utc)
 
         for path, metadata, body in governance.active_entries(self.repo):
             try:
@@ -612,6 +614,7 @@ class KnowledgeService:
                     "tags": tags,
                     "relative_path": path.relative_to(self.repo).as_posix(),
                     "excerpt": excerpt,
+                    "review": governance.knowledge_review(metadata, as_of),
                 }
             )
 
@@ -648,6 +651,7 @@ class KnowledgeService:
             path,
             metadata,
         )
+        review = governance.knowledge_review(metadata, datetime.now(timezone.utc))
         return {
             "knowledge": {
                 "id": metadata["id"],
@@ -663,5 +667,6 @@ class KnowledgeService:
                 "source_references": metadata.get("source_references", []),
                 "relative_path": path.relative_to(self.repo).as_posix(),
                 "content": content,
+                "review": review,
             }
         }
