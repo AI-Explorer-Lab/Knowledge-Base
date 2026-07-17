@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { Copy, Tags, X } from 'lucide-vue-next'
+import { CalendarClock, Copy, Tags, X } from 'lucide-vue-next'
 import type { KnowledgeFile } from '@/types'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
 import { pushToast } from '@/composables/useToast'
+import { formatKnowledgeTime, formatReviewStatus } from '@/utils/knowledge'
 
 const props = defineProps<{
   open: boolean
@@ -42,6 +43,11 @@ async function copyPath() {
               <span class="knowledge-tag">{{ knowledge.scope }}</span>
               <span class="knowledge-tag">{{ knowledge.layer }}</span>
               <span class="knowledge-tag">{{ knowledge.maturity }}</span>
+            </div>
+            <div class="file-review-line" :class="{ overdue: knowledge.review.overdue }">
+              <span><CalendarClock :size="17" />Next Review</span>
+              <time :datetime="knowledge.review.next_review_at">{{ formatKnowledgeTime(knowledge.review.next_review_at) }}</time>
+              <em v-if="knowledge.review.overdue">{{ formatReviewStatus(knowledge.review.overdue) }}</em>
             </div>
             <div class="file-tag-section">
               <span class="file-section-label"><Tags :size="16" />标签</span>

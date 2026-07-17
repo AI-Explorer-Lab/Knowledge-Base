@@ -11,12 +11,14 @@ from __future__ import annotations
 import argparse
 import contextlib
 import fcntl
+import hashlib
 import json
 import os
 import re
 import sys
 import tempfile
-from datetime import datetime, timezone
+from copy import deepcopy
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
 
@@ -36,14 +38,15 @@ SCOPES = {"personal", "team"}
 MATURITIES = {"draft", "verified", "proven"}
 CONFLICT_STATES = {"none", "suspected", "confirmed", "resolved"}
 VALIDATION_RESULTS = {"passed", "failed"}
-ROLES = {"reader", "contributor", "maintainer", "system"}
+ROLES = {"reader", "contributor", "maintainer", "super_admin", "system"}
 
-PROVEN_DECAY_DAYS = 365
-VERIFIED_DECAY_DAYS = 180
-DRAFT_ARCHIVE_DAYS = 180
+PROVEN_DECAY_DAYS = 60
+VERIFIED_DECAY_DAYS = 30
+DRAFT_ARCHIVE_DAYS = 30
 LINT_REMINDER_DAYS = 30
 LINT_WORKFLOW_INTERVAL = 10
 STATE_FILE = ".knowledge-governance-state.json"
+BEIJING_TIMEZONE = timezone(timedelta(hours=8))
 
 METADATA_PATTERN = re.compile(
     r"\A```knowledge-metadata[ \t]*\n(?P<json>.*?)\n```[ \t]*(?:\n|\Z)",
@@ -101,6 +104,8 @@ def resolve_inside(repo: Path, value: str) -> Path:
 def require_role(role: str, allowed: Sequence[str]) -> None:
     if role not in ROLES:
         raise GovernanceError(f"未知角色：{role}")
+    if role == "super_admin" and "maintainer" in allowed:
+        return
     if role not in allowed:
         raise GovernanceError(f"角色 {role} 无权执行该操作；允许角色：{', '.join(allowed)}")
 
@@ -191,6 +196,20 @@ def metadata_scope(metadata: Dict[str, Any]) -> Optional[str]:
     return scope
 
 
+def entry_revision(metadata: Dict[str, Any]) -> int:
+    """Return the current knowledge revision while preserving legacy entries."""
+
+    value = metadata.get("revision", 1)
+    return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else 1
+
+
+def record_revision(record: Dict[str, Any]) -> int:
+    """Treat evidence created before revision support as revision one."""
+
+    value = record.get("revision", 1)
+    return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else 1
+
+
 def entry_technical_direction(
     repo: Path,
     path: Path,
@@ -214,7 +233,12 @@ def entry_technical_direction(
 def effective_references(metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
     evidence = metadata.get("evidence", {})
     references = evidence.get("references", []) if isinstance(evidence, dict) else []
-    records = [item for item in references if isinstance(item, dict)]
+    revision = entry_revision(metadata)
+    records = [
+        item
+        for item in references
+        if isinstance(item, dict) and record_revision(item) == revision
+    ]
     if metadata_scope(metadata) != "personal":
         return records
     owner_id = metadata.get("owner_id")
@@ -243,6 +267,24 @@ def validate_metadata(metadata: Dict[str, Any], body: str) -> List[str]:
         errors.append(f"maturity 必须是以下值之一：{', '.join(sorted(MATURITIES))}")
     if metadata.get("conflict_status") not in CONFLICT_STATES:
         errors.append(f"conflict_status 必须是以下值之一：{', '.join(sorted(CONFLICT_STATES))}")
+
+    if "revision" in metadata and (
+        not isinstance(metadata["revision"], int)
+        or isinstance(metadata["revision"], bool)
+        or metadata["revision"] < 1
+    ):
+        errors.append("revision 必须是正整数")
+    updated_at = metadata.get("updated_at")
+    updated_by = metadata.get("updated_by")
+    if (updated_at is None) != (updated_by is None):
+        errors.append("updated_at 和 updated_by 必须同时填写")
+    if updated_at is not None:
+        if not isinstance(updated_by, str) or not updated_by.strip():
+            errors.append("updated_by 必须是非空字符串")
+        try:
+            parse_time(updated_at)
+        except (TypeError, ValueError) as exc:
+            errors.append(f"updated_at 非法：{exc}")
 
     technical_direction = metadata.get("technical_direction")
     if "technical_direction" in metadata:
@@ -307,6 +349,12 @@ def validate_metadata(metadata: Dict[str, Any], body: str) -> List[str]:
                 errors.append(
                     f"evidence.references[{index}].contributor 必须等于个人知识 owner_id"
                 )
+            if "revision" in validated and (
+                not isinstance(validated["revision"], int)
+                or isinstance(validated["revision"], bool)
+                or validated["revision"] < 1
+            ):
+                errors.append(f"evidence.references[{index}].revision 必须是正整数")
 
     validations = ensure_list(evidence.get("validations"), "evidence.validations", errors)
     for index, record in enumerate(validations):
@@ -325,6 +373,12 @@ def validate_metadata(metadata: Dict[str, Any], body: str) -> List[str]:
                 parse_time(validated.get("validated_at", ""))
             except (TypeError, ValueError) as exc:
                 errors.append(f"evidence.validations[{index}].validated_at 非法：{exc}")
+            if "revision" in validated and (
+                not isinstance(validated["revision"], int)
+                or isinstance(validated["revision"], bool)
+                or validated["revision"] < 1
+            ):
+                errors.append(f"evidence.validations[{index}].revision 必须是正整数")
 
     promotion = metadata.get("promotion")
     if not isinstance(promotion, dict):
@@ -520,7 +574,14 @@ def active_entries(repo: Path) -> List[Tuple[Path, Dict[str, Any], str]]:
 def passed_validations(metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
     evidence = metadata.get("evidence", {})
     validations = evidence.get("validations", []) if isinstance(evidence, dict) else []
-    return [item for item in validations if isinstance(item, dict) and item.get("result") == "passed"]
+    revision = entry_revision(metadata)
+    return [
+        item
+        for item in validations
+        if isinstance(item, dict)
+        and item.get("result") == "passed"
+        and record_revision(item) == revision
+    ]
 
 
 def usage_validations(metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -556,7 +617,30 @@ def last_reference_time(metadata: Dict[str, Any]) -> datetime:
             continue
     if candidates:
         return max(candidates)
-    return parse_time(metadata["created_at"])
+    return parse_time(metadata.get("updated_at") or metadata["created_at"])
+
+
+def knowledge_review(metadata: Dict[str, Any], as_of: datetime) -> Dict[str, Any]:
+    """Return the derived review deadline shared by API reads and lifecycle Lint."""
+
+    maturity = metadata.get("maturity")
+    review_days = {
+        "draft": DRAFT_ARCHIVE_DAYS,
+        "verified": VERIFIED_DECAY_DAYS,
+        "proven": PROVEN_DECAY_DAYS,
+    }
+    if maturity not in review_days:
+        raise GovernanceError(f"未知成熟度，无法计算 review 时间：{maturity}")
+    if as_of.tzinfo is None or as_of.utcoffset() is None:
+        raise GovernanceError("review 计算时间必须包含时区")
+
+    next_review_at = last_reference_time(metadata) + timedelta(days=review_days[maturity])
+    return {
+        "next_review_at": next_review_at.astimezone(BEIJING_TIMEZONE).isoformat(
+            timespec="seconds"
+        ),
+        "overdue": as_of.astimezone(timezone.utc) >= next_review_at,
+    }
 
 
 def touch_contributor(metadata: Dict[str, Any], actor: str) -> None:
@@ -622,6 +706,7 @@ def build_knowledge_metadata(
         "scope": scope,
         "maturity": "draft",
         "created_at": created_at or utc_now(),
+        "revision": 1,
         "tags": list(tags or []),
         "source_references": list(sources),
         "evidence": {
@@ -728,6 +813,189 @@ def create_knowledge_entry(
                 atomic_write(candidate, previous)
         raise
     return metadata
+
+
+ADMIN_EDITABLE_FIELDS = {
+    "title",
+    "type",
+    "layer",
+    "scope",
+    "tags",
+    "source_references",
+    "technical_direction",
+    "owner_id",
+}
+
+
+def prepare_admin_update(
+    metadata: Dict[str, Any],
+    *,
+    updates: Dict[str, Any],
+    content: str,
+    actor: str,
+    updated_at: Optional[str] = None,
+) -> Tuple[Dict[str, Any], str]:
+    """Build the next revision without mutating historical evidence."""
+
+    unexpected = set(updates) - ADMIN_EDITABLE_FIELDS
+    if unexpected:
+        raise GovernanceError(f"管理员修改包含不可编辑字段：{', '.join(sorted(unexpected))}")
+    next_metadata = deepcopy(metadata)
+    for field, value in updates.items():
+        if field in {"owner_id", "technical_direction"} and value is None:
+            next_metadata.pop(field, None)
+        else:
+            next_metadata[field] = deepcopy(value)
+    next_metadata["revision"] = entry_revision(metadata) + 1
+    next_metadata["updated_at"] = updated_at or utc_now()
+    next_metadata["updated_by"] = actor
+    next_metadata["maturity"] = "draft"
+    promotion = next_metadata.setdefault("promotion", {})
+    promotion["candidate"] = False
+    promotion["target_layer"] = None
+    promotion["target_path"] = None
+    title = str(next_metadata.get("title", "")).strip()
+    normalized_content = content.strip()
+    next_body = f"# {title}\n\n{normalized_content}\n"
+    return next_metadata, next_body
+
+
+def _knowledge_update_snapshots(
+    repo: Path,
+    source: Path,
+    target: Path,
+) -> Dict[Path, Optional[str]]:
+    _source_layer, source_root, _source_archived, _ = layer_context(repo, source)
+    _target_layer, target_root, _target_archived, _ = layer_context(repo, target)
+    touched = {
+        source,
+        target,
+        repo / "knowledge-catalog.md",
+        repo / "log.md",
+        source_root / "catalog.md",
+        target_root / "catalog.md",
+    }
+    touched.update(root / "catalog.md" for root in knowledge_roots(repo))
+    return {
+        path: path.read_text(encoding="utf-8") if path.exists() and path.is_file() else None
+        for path in touched
+    }
+
+
+def restore_snapshots(snapshots: Dict[Path, Optional[str]]) -> None:
+    for path, previous in snapshots.items():
+        if previous is None:
+            if path.exists() and path.is_file():
+                path.unlink()
+        else:
+            atomic_write(path, previous)
+
+
+def update_knowledge_entry(
+    *,
+    repo: Path,
+    source_path: Path,
+    target_path: Path,
+    updates: Dict[str, Any],
+    content: str,
+    actor: str,
+    role: str,
+    reason: str,
+    request_id: str,
+    updated_at: Optional[str] = None,
+    session: str = "web:super-admin",
+) -> Tuple[Dict[str, Any], Path, str]:
+    """Atomically update one active entry, its indexes, and its audit record."""
+
+    if role != "super_admin":
+        raise GovernanceError("只有 super_admin 可以修改已有知识")
+    repo = repo.resolve()
+    source = resolve_inside(repo, str(source_path))
+    target = resolve_inside(repo, str(target_path))
+    metadata, body = read_entry(source)
+    require_valid_entry(repo, source, metadata, body)
+    _layer, _root, archived, _active = layer_context(repo, source)
+    if archived:
+        raise GovernanceError("归档知识必须恢复后才能修改")
+    if target != source and target.exists():
+        raise GovernanceError(f"目标路径已存在：{target.relative_to(repo)}")
+
+    next_metadata, next_body = prepare_admin_update(
+        metadata,
+        updates=updates,
+        content=content,
+        actor=actor,
+        updated_at=updated_at,
+    )
+    errors = validate_metadata(next_metadata, next_body)
+    errors.extend(validate_path_metadata(repo, target, next_metadata))
+    if errors:
+        raise GovernanceError("管理员修改后的知识无效：\n- " + "\n- ".join(errors))
+
+    snapshots = _knowledge_update_snapshots(repo, source, target)
+    source_relative = source.relative_to(repo).as_posix()
+    target_relative = target.relative_to(repo).as_posix()
+    before_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()
+    after_hash = hashlib.sha256(next_body.encode("utf-8")).hexdigest()
+    changed_fields = sorted(
+        field
+        for field in ADMIN_EDITABLE_FIELDS
+        if metadata.get(field) != next_metadata.get(field)
+    )
+    if body != next_body and "content" not in changed_fields:
+        changed_fields.append("content")
+    action = "admin-knowledge-move" if source != target else "admin-knowledge-update"
+    detail = json.dumps(
+        {
+            "request_id": request_id,
+            "reason": reason,
+            "changed_fields": changed_fields,
+            "before": {
+                "revision": entry_revision(metadata),
+                "maturity": metadata.get("maturity"),
+                "path": source_relative,
+                "content_sha256": before_hash,
+                "metadata": {
+                    "title": metadata.get("title"),
+                    "type": metadata.get("type"),
+                    "scope": metadata_scope(metadata),
+                    "layer": metadata.get("layer"),
+                    "owner_id": metadata.get("owner_id"),
+                    "tags": metadata.get("tags", []),
+                    "source_references": metadata.get("source_references", []),
+                },
+            },
+            "after": {
+                "revision": next_metadata["revision"],
+                "maturity": next_metadata.get("maturity"),
+                "path": target_relative,
+                "content_sha256": after_hash,
+                "metadata": {
+                    "title": next_metadata.get("title"),
+                    "type": next_metadata.get("type"),
+                    "scope": metadata_scope(next_metadata),
+                    "layer": next_metadata.get("layer"),
+                    "owner_id": next_metadata.get("owner_id"),
+                    "tags": next_metadata.get("tags", []),
+                    "source_references": next_metadata.get("source_references", []),
+                },
+            },
+            "result": "success",
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    try:
+        write_entry(source, next_metadata, next_body)
+        if source != target:
+            move_entry(source, target)
+        reindex(repo)
+        append_log(repo, actor, action, str(next_metadata["id"]), detail, session)
+    except Exception:
+        restore_snapshots(snapshots)
+        raise
+    return next_metadata, target, action
 
 
 def read_governance_state(repo: Path) -> Dict[str, Any]:
@@ -969,6 +1237,7 @@ def cmd_reference(args: argparse.Namespace) -> None:
         "contributor": args.actor,
         "referenced_at": args.at or utc_now(),
         "used_in": args.used_in,
+        "revision": entry_revision(metadata),
     }
     parse_time(record["referenced_at"])
     metadata["evidence"]["references"].append(record)
@@ -994,6 +1263,7 @@ def cmd_validate(args: argparse.Namespace) -> None:
         "validated_at": args.at or utc_now(),
         "result": args.result,
         "source": args.source,
+        "revision": entry_revision(metadata),
     }
     parse_time(record["validated_at"])
     metadata["evidence"]["validations"].append(record)
@@ -1013,7 +1283,7 @@ def cmd_validate(args: argparse.Namespace) -> None:
     print(f"已记录验证：{metadata['id']}（{detail}）")
 
 
-def cmd_approve_proven(args: argparse.Namespace) -> None:
+def approve_proven_action(args: argparse.Namespace) -> None:
     repo = resolve_repo(args.repo)
     require_role(args.role, ("maintainer",))
     path = resolve_inside(repo, args.path)
@@ -1050,7 +1320,7 @@ def destination_for_promotion(repo: Path, target_layer: str, target_path: str, f
     return base / relative / filename
 
 
-def cmd_propose_promotion(args: argparse.Namespace) -> None:
+def propose_promotion_action(args: argparse.Namespace) -> None:
     repo = resolve_repo(args.repo)
     require_role(args.role, ("contributor", "maintainer"))
     path = resolve_inside(repo, args.path)
@@ -1096,7 +1366,7 @@ def cmd_propose_promotion(args: argparse.Namespace) -> None:
     print(f"已发起层级提升：{metadata['id']} → {args.target_layer}")
 
 
-def cmd_approve_promotion(args: argparse.Namespace) -> None:
+def approve_promotion_action(args: argparse.Namespace) -> None:
     repo = resolve_repo(args.repo)
     require_role(args.role, ("maintainer",))
     path = resolve_inside(repo, args.path)
@@ -1154,7 +1424,7 @@ def cmd_approve_promotion(args: argparse.Namespace) -> None:
     print(f"已批准层级提升：{target_relative}")
 
 
-def cmd_rollback_layer(args: argparse.Namespace) -> None:
+def rollback_layer_action(args: argparse.Namespace) -> None:
     repo = resolve_repo(args.repo)
     require_role(args.role, ("maintainer",))
     path = resolve_inside(repo, args.path)
@@ -1196,7 +1466,7 @@ def cmd_rollback_layer(args: argparse.Namespace) -> None:
     print(f"已退回 Layer 3：{target_relative}")
 
 
-def cmd_archive(args: argparse.Namespace) -> None:
+def archive_action(args: argparse.Namespace) -> None:
     repo = resolve_repo(args.repo)
     require_role(args.role, ("maintainer",))
     target = archive_entry(
@@ -1210,7 +1480,7 @@ def cmd_archive(args: argparse.Namespace) -> None:
     print(f"已归档：{target.relative_to(repo)}")
 
 
-def cmd_restore(args: argparse.Namespace) -> None:
+def restore_action(args: argparse.Namespace) -> None:
     repo = resolve_repo(args.repo)
     require_role(args.role, ("maintainer",))
     path = resolve_inside(repo, args.path)
@@ -1250,7 +1520,7 @@ def conflict_record_path(repo: Path, knowledge_id: str) -> Path:
     return repo / "contributions" / "conflicts" / f"{knowledge_id}-{timestamp}.md"
 
 
-def cmd_mark_conflict(args: argparse.Namespace) -> None:
+def mark_conflict_action(args: argparse.Namespace) -> None:
     repo = resolve_repo(args.repo)
     require_role(args.role, ("contributor", "maintainer"))
     path = resolve_inside(repo, args.path)
@@ -1281,7 +1551,7 @@ def latest_conflict_record(repo: Path, knowledge_id: str) -> Optional[Path]:
     return matches[-1] if matches else None
 
 
-def cmd_resolve_conflict(args: argparse.Namespace) -> None:
+def resolve_conflict_action(args: argparse.Namespace) -> None:
     repo = resolve_repo(args.repo)
     require_role(args.role, ("maintainer",))
     path = resolve_inside(repo, args.path)
@@ -1303,6 +1573,38 @@ def cmd_resolve_conflict(args: argparse.Namespace) -> None:
         atomic_write(record_path, current)
     append_log(repo, args.actor, "resolve-conflict", metadata["id"], args.resolution, args.session)
     print(f"已解决冲突：{metadata['id']}")
+
+
+def cmd_approve_proven(args: argparse.Namespace) -> None:
+    approve_proven_action(args)
+
+
+def cmd_propose_promotion(args: argparse.Namespace) -> None:
+    propose_promotion_action(args)
+
+
+def cmd_approve_promotion(args: argparse.Namespace) -> None:
+    approve_promotion_action(args)
+
+
+def cmd_rollback_layer(args: argparse.Namespace) -> None:
+    rollback_layer_action(args)
+
+
+def cmd_archive(args: argparse.Namespace) -> None:
+    archive_action(args)
+
+
+def cmd_restore(args: argparse.Namespace) -> None:
+    restore_action(args)
+
+
+def cmd_mark_conflict(args: argparse.Namespace) -> None:
+    mark_conflict_action(args)
+
+
+def cmd_resolve_conflict(args: argparse.Namespace) -> None:
+    resolve_conflict_action(args)
 
 
 def catalog_issues(repo: Path) -> List[str]:
@@ -1369,21 +1671,22 @@ def lint_entries(repo: Path, as_of: datetime) -> Tuple[List[str], List[Tuple[Pat
         last_reference = last_reference_time(metadata)
         age_days = (as_of - last_reference).days
         maturity = metadata["maturity"]
+        review = knowledge_review(metadata, as_of)
         if (
             maturity == "verified"
-            and age_days < VERIFIED_DECAY_DAYS
+            and not review["overdue"]
             and eligible_for_proven(metadata)
         ):
             issues.append(f"PROVEN_REVIEW {relative}: 已满足 proven 条件，等待 Maintainer 审批")
-        if maturity == "proven" and age_days >= PROVEN_DECAY_DAYS:
+        if maturity == "proven" and review["overdue"]:
             issues.append(f"DECAY {relative}: proven 已 {age_days} 天未引用，应降为 verified")
             actions.append((path, "verified"))
-        elif maturity == "verified" and age_days >= VERIFIED_DECAY_DAYS:
+        elif maturity == "verified" and review["overdue"]:
             issues.append(f"DECAY {relative}: verified 已 {age_days} 天未引用，应降为 draft")
             actions.append((path, "draft"))
         elif (
             maturity == "draft"
-            and age_days >= DRAFT_ARCHIVE_DAYS
+            and review["overdue"]
         ):
             issues.append(f"ARCHIVE_DUE {relative}: draft 已 {age_days} 天未引用")
             actions.append((path, "archive"))
@@ -1481,7 +1784,10 @@ def cmd_reindex(args: argparse.Namespace) -> None:
 
 def add_actor_options(parser: argparse.ArgumentParser, roles: Sequence[str]) -> None:
     parser.add_argument("--actor", required=True, help="操作者稳定 ID")
-    parser.add_argument("--role", required=True, choices=roles)
+    allowed_roles = list(roles)
+    if "maintainer" in allowed_roles and "super_admin" not in allowed_roles:
+        allowed_roles.append("super_admin")
+    parser.add_argument("--role", required=True, choices=allowed_roles)
     parser.add_argument("--session", default="manual", help="会话或工作流标识")
 
 

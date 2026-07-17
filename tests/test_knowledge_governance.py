@@ -291,7 +291,49 @@ class KnowledgeGovernanceTest(unittest.TestCase):
         self.assertEqual(restored, 0, error)
         self.assertEqual(self.read_metadata(path)["evidence"]["references"], [])
 
-    def test_draft_is_due_for_archive_after_six_months_without_reference(self):
+    def test_review_uses_effective_reference_and_returns_beijing_time(self):
+        path = self.create_personal("review.md")
+        metadata = self.read_metadata(path)
+        metadata["created_at"] = "2026-01-01T00:00:00Z"
+        metadata["evidence"]["references"] = [
+            {
+                "project_id": "project-a",
+                "workflow_id": "flow-a",
+                "contributor": "zhangsan",
+                "referenced_at": "2026-01-05T00:00:00Z",
+                "used_in": "IMPLEMENT",
+            },
+            {
+                "project_id": "project-b",
+                "workflow_id": "flow-b",
+                "contributor": "lisi",
+                "referenced_at": "2026-01-20T00:00:00Z",
+                "used_in": "IMPLEMENT",
+            },
+        ]
+
+        before_due = governance.knowledge_review(
+            metadata,
+            datetime(2026, 2, 3, 23, 59, 59, tzinfo=timezone.utc),
+        )
+        at_due = governance.knowledge_review(
+            metadata,
+            datetime(2026, 2, 4, tzinfo=timezone.utc),
+        )
+
+        self.assertEqual(before_due["next_review_at"], "2026-02-04T08:00:00+08:00")
+        self.assertFalse(before_due["overdue"])
+        self.assertTrue(at_due["overdue"])
+
+        metadata["maturity"] = "proven"
+        proven = governance.knowledge_review(
+            metadata,
+            datetime(2026, 3, 6, tzinfo=timezone.utc),
+        )
+        self.assertEqual(proven["next_review_at"], "2026-03-06T08:00:00+08:00")
+        self.assertTrue(proven["overdue"])
+
+    def test_draft_is_due_for_archive_after_thirty_days_without_reference(self):
         path = self.create_personal("stale.md")
         absolute_path = self.repo / path
         metadata, body = governance.read_entry(absolute_path)
@@ -300,7 +342,7 @@ class KnowledgeGovernanceTest(unittest.TestCase):
 
         issues, actions = governance.lint_entries(
             self.repo,
-            datetime(2025, 7, 2, tzinfo=timezone.utc),
+            datetime(2025, 1, 31, tzinfo=timezone.utc),
         )
         self.assertTrue(any(item.startswith("ARCHIVE_DUE") for item in issues))
         self.assertIn((absolute_path, "archive"), actions)
@@ -339,11 +381,11 @@ class KnowledgeGovernanceTest(unittest.TestCase):
 
         _, verified_actions = governance.lint_entries(
             self.repo,
-            datetime(2025, 7, 2, tzinfo=timezone.utc),
+            datetime(2025, 1, 31, tzinfo=timezone.utc),
         )
         _, proven_actions = governance.lint_entries(
             self.repo,
-            datetime(2025, 1, 2, tzinfo=timezone.utc),
+            datetime(2024, 3, 1, tzinfo=timezone.utc),
         )
         self.assertIn((self.repo / verified_path, "draft"), verified_actions)
         self.assertIn((self.repo / proven_path, "verified"), proven_actions)
@@ -495,6 +537,71 @@ class KnowledgeGovernanceTest(unittest.TestCase):
         )
         self.assertEqual(result, 1)
         self.assertIn("guidelines/", error)
+
+    def test_admin_revision_preserves_old_evidence_but_only_current_revision_counts(self):
+        relative = self.create_team("revisioned.md")
+        referenced, _, error = self.reference(relative, "alice")
+        self.assertEqual(referenced, 0, error)
+        validated, _, error = self.validate(relative, "bob")
+        self.assertEqual(validated, 0, error)
+        path = self.repo / relative
+        metadata, body = governance.read_entry(path)
+        self.assertEqual(metadata["revision"], 1)
+        self.assertEqual(metadata["maturity"], "verified")
+        self.assertEqual(metadata["evidence"]["references"][0]["revision"], 1)
+        self.assertEqual(metadata["evidence"]["validations"][0]["revision"], 1)
+
+        updated, written_path, action = governance.update_knowledge_entry(
+            repo=self.repo,
+            source_path=path,
+            target_path=path,
+            updates={
+                "title": "团队技术约定（修订）",
+                "type": metadata["type"],
+                "layer": metadata["layer"],
+                "scope": governance.metadata_scope(metadata),
+                "tags": metadata["tags"],
+                "source_references": metadata["source_references"],
+                "technical_direction": metadata.get("technical_direction"),
+                "owner_id": metadata.get("owner_id"),
+            },
+            content="治理脚本仍只使用 Python 标准库。",
+            actor="root",
+            role="super_admin",
+            reason="修订知识正文",
+            request_id="revision-test-request",
+        )
+        self.assertEqual(action, "admin-knowledge-update")
+        self.assertEqual(written_path, path.resolve())
+        self.assertEqual(updated["revision"], 2)
+        self.assertEqual(updated["maturity"], "draft")
+        self.assertFalse(governance.eligible_for_verified(updated))
+        self.assertEqual(len(updated["evidence"]["references"]), 1)
+        self.assertEqual(len(updated["evidence"]["validations"]), 1)
+
+        referenced, _, error = self.reference(relative, "alice", role="super_admin")
+        self.assertEqual(referenced, 0, error)
+        validated, _, error = self.run_command(
+            "validate",
+            relative,
+            "--project",
+            "project-a",
+            "--workflow",
+            "flow-a",
+            "--result",
+            "passed",
+            "--source",
+            "修订后复核",
+            "--actor",
+            "bob",
+            "--role",
+            "super_admin",
+        )
+        self.assertEqual(validated, 0, error)
+        current = self.read_metadata(relative)
+        self.assertEqual(current["maturity"], "verified")
+        self.assertEqual(current["evidence"]["references"][-1]["revision"], 2)
+        self.assertEqual(current["evidence"]["validations"][-1]["revision"], 2)
 
 
 if __name__ == "__main__":

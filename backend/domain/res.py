@@ -28,6 +28,7 @@ class BusinessDomainResponse(ResponseModel):
     id: str
     name: str
     description: str
+    status: Literal["active", "disabled"] = "active"
 
 
 class KnowledgeOptionsResponse(ResponseModel):
@@ -121,8 +122,77 @@ class CreateKnowledgeResponse(ResponseModel):
     idempotent_replay: bool = False
 
 
+class KnowledgeReviewResponse(ResponseModel):
+    next_review_at: str
+    overdue: bool
+
+
+class KnowledgeFileItem(ResponseModel):
+    id: str
+    title: str
+    type: KnowledgeType
+    scope: KnowledgeScope
+    owner_id: Optional[str]
+    layer: KnowledgeLayer
+    technical_direction: Optional[TechnicalDirection]
+    maturity: KnowledgeMaturity
+    created_at: str
+    tags: List[str]
+    source_references: List[str]
+    relative_path: str
+    content: str
+    review: KnowledgeReviewResponse
+
+
 class KnowledgeFileResponse(ResponseModel):
+    knowledge: KnowledgeFileItem
+
+
+class SuperAdminKnowledgeListResponse(ResponseModel):
+    items: List[Dict[str, Any]]
+    counts: Dict[str, int]
+    total: int
+
+
+class SuperAdminKnowledgeDetailResponse(ResponseModel):
     knowledge: Dict[str, Any]
+
+
+class SuperAdminPreviewResponse(ResponseModel):
+    before: Dict[str, Any]
+    after: Dict[str, Any]
+    changed_fields: List[str]
+    consequences: List[str]
+    checks: List[PreviewCheck]
+    preview_token: str
+    expires_at: str
+
+
+class SuperAdminCommitResponse(ResponseModel):
+    knowledge: Dict[str, Any]
+    writes: List[WriteResult]
+    audit_logged: bool
+    idempotent_replay: bool = False
+
+
+class SuperAdminActionResponse(ResponseModel):
+    knowledge: Dict[str, Any]
+    action: str
+    audit_logged: bool
+
+
+class AuditRecordResponse(ResponseModel):
+    timestamp: str
+    actor: str
+    action: str
+    target_id: str
+    detail: Any
+    session: str
+
+
+class AuditListResponse(ResponseModel):
+    items: List[AuditRecordResponse]
+    total: int
 
 
 class KnowledgeListItem(ResponseModel):
@@ -138,6 +208,7 @@ class KnowledgeListItem(ResponseModel):
     tags: List[str]
     relative_path: str
     excerpt: str
+    review: KnowledgeReviewResponse
 
 
 class KnowledgeListResponse(ResponseModel):

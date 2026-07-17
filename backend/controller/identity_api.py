@@ -18,9 +18,10 @@ def get_me(request: Request, member: Dict[str, str] = Depends(current_member)) -
         "member": member,
         "permissions": {
             "can_browse_knowledge": True,
-            "can_create_knowledge": role in {"contributor", "maintainer"},
-            "can_manage_members": role == "maintainer",
-            "can_manage_business_domains": role == "maintainer",
+            "can_create_knowledge": role in {"contributor", "maintainer", "super_admin"},
+            "can_manage_members": role in {"maintainer", "super_admin"},
+            "can_manage_business_domains": role in {"maintainer", "super_admin"},
+            "can_super_admin": role == "super_admin",
         },
         "environment": request.app.state.settings.environment_name,
     }

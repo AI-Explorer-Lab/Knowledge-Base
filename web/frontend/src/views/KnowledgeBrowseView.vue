@@ -4,6 +4,7 @@ import {
   ArrowUpRight,
   BookOpenCheck,
   BriefcaseBusiness,
+  CalendarClock,
   Code2,
   FolderKanban,
   Layers3,
@@ -20,7 +21,7 @@ import type {
   KnowledgeLayer,
   KnowledgeListItem,
 } from '@/types'
-import { formatKnowledgeTime } from '@/utils/knowledge'
+import { formatKnowledgeTime, formatReviewStatus } from '@/utils/knowledge'
 
 type LayerChoice = {
   value?: KnowledgeLayer
@@ -209,6 +210,11 @@ async function openKnowledge(item: KnowledgeListItem) {
           </span>
           <span v-if="item.tags.length" class="knowledge-card-tags">
             <em v-for="tag in item.tags" :key="tag">#{{ tag }}</em>
+          </span>
+          <span class="knowledge-card-review" :class="{ overdue: item.review.overdue }">
+            <span><CalendarClock :size="15" /><strong>Next Review</strong></span>
+            <time :datetime="item.review.next_review_at">{{ formatKnowledgeTime(item.review.next_review_at) }}</time>
+            <em v-if="item.review.overdue">{{ formatReviewStatus(item.review.overdue) }}</em>
           </span>
           <span class="knowledge-card-footer">
             <code>{{ item.id }}</code>

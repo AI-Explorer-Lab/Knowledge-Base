@@ -14,6 +14,7 @@ from backend.controller import (
     identity_api,
     knowledge_api,
     member_api,
+    super_admin_api,
 )
 from backend.database.lifecycle import close_database, init_database
 from backend.exceptions.exception_handler import install_exception_handlers
@@ -25,6 +26,7 @@ from backend.service.business_domain_service import BusinessDomainService
 from backend.service.member_service import MemberService
 from backend.service.preview_token_service import PreviewTokenService
 from backend.service.repository_lock import RepositoryWriteLock
+from backend.service.super_admin_service import SuperAdminService
 
 
 def create_app(settings: Any = None) -> FastAPI:
@@ -85,6 +87,12 @@ def create_app(settings: Any = None) -> FastAPI:
         write_lock,
         token_service,
     )
+    app.state.super_admin = SuperAdminService(
+        settings.repo_root,
+        member_service,
+        write_lock,
+        token_service,
+    )
 
     install_exception_handlers(app)
     app.include_router(health_api.router)
@@ -92,6 +100,7 @@ def create_app(settings: Any = None) -> FastAPI:
     app.include_router(knowledge_api.router)
     app.include_router(member_api.router)
     app.include_router(business_domain_api.router)
+    app.include_router(super_admin_api.router)
     return app
 
 

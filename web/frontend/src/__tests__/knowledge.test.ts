@@ -3,6 +3,8 @@ import { mockGetKnowledgeTemplate } from '@/api/mock'
 import { renderMarkdown } from '@/utils/markdown'
 import {
   buildKnowledgePayload,
+  formatKnowledgeTime,
+  formatReviewStatus,
   initialKnowledgeDraft,
   shouldConfirmTemplateReplacement,
   validateKnowledgeDraft,
@@ -25,7 +27,7 @@ const options: KnowledgeOptions = {
     { value: 'patterns', label: '正向模式' },
     { value: 'anti-patterns', label: '反模式' },
   ],
-  business_domains: [{ id: 'order', name: '订单', description: '订单履约' }],
+  business_domains: [{ id: 'order', name: '订单', description: '订单履约', status: 'active' }],
   preview_ttl_seconds: 600,
 }
 
@@ -140,6 +142,17 @@ describe('knowledge request shaping', () => {
     expect(shouldConfirmTemplateReplacement(originalTemplate, originalTemplate)).toBe(false)
     expect(shouldConfirmTemplateReplacement(`${originalTemplate}\n用户补充`, originalTemplate)).toBe(true)
     expect(shouldConfirmTemplateReplacement('从预览页返回的正文', null)).toBe(true)
+  })
+})
+
+describe('knowledge review display', () => {
+  it('formats UTC+8 review timestamps in Beijing time', () => {
+    expect(formatKnowledgeTime('2026-09-07T11:15:00+08:00')).toBe('2026-09-07 11:15')
+  })
+
+  it('shows text only when a review is overdue', () => {
+    expect(formatReviewStatus(false)).toBe('')
+    expect(formatReviewStatus(true)).toBe('已到期')
   })
 })
 

@@ -12,8 +12,9 @@ const identity = (role: CurrentUserResponse['member']['role']): CurrentUserRespo
   permissions: {
     can_browse_knowledge: true,
     can_create_knowledge: role !== 'reader',
-    can_manage_members: role === 'maintainer',
-    can_manage_business_domains: role === 'maintainer',
+    can_manage_members: role === 'maintainer' || role === 'super_admin',
+    can_manage_business_domains: role === 'maintainer' || role === 'super_admin',
+    can_super_admin: role === 'super_admin',
   },
 })
 
@@ -81,9 +82,25 @@ describe('fail-closed routing', () => {
   })
 
   it('uses refreshed permissions for the post-role-change destination', () => {
+    expect(defaultRouteForIdentity(identity('super_admin'))).toBe('/super-admin')
     expect(defaultRouteForIdentity(identity('maintainer'))).toBe('/knowledge/create')
     expect(defaultRouteForIdentity(identity('contributor'))).toBe('/knowledge/create')
     expect(defaultRouteForIdentity(identity('reader'))).toBe('/knowledge/browse')
     expect(defaultRouteForIdentity(null)).toBe('/forbidden')
+  })
+
+  it('allows only super_admin into the super management route', () => {
+    expect(routeRequiresForbidden({
+      routeName: 'super-admin',
+      allowedRoles: ['super_admin'],
+      identity: identity('maintainer'),
+      failureKind: 'none',
+    })).toBe(true)
+    expect(routeRequiresForbidden({
+      routeName: 'super-admin',
+      allowedRoles: ['super_admin'],
+      identity: identity('super_admin'),
+      failureKind: 'none',
+    })).toBe(false)
   })
 })

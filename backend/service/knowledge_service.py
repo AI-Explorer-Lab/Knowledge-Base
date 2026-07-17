@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -226,8 +227,13 @@ class KnowledgeService:
             },
         ]
 
-    def options(self) -> Dict[str, Any]:
+    def options(self, *, include_disabled_domains: bool = False) -> Dict[str, Any]:
         configured = self.members.knowledge_options()
+        domains = (
+            self.members.list_business_domains()
+            if include_disabled_domains
+            else configured["business_domains"]
+        )
         return {
             "scopes": [
                 {"value": "personal", "label": "个人知识"},
@@ -250,14 +256,14 @@ class KnowledgeService:
                 {"value": "patterns", "label": "正向模式"},
                 {"value": "anti-patterns", "label": "反模式"},
             ],
-            "business_domains": configured["business_domains"],
+            "business_domains": domains,
             "preview_ttl_seconds": self.preview_tokens.ttl_seconds,
         }
 
     def preview(self, request: KnowledgeInput, actor: Dict[str, str]) -> Dict[str, Any]:
         with self.write_lock.acquire():
             current_actor = self.members.get_member(actor["id"])
-            self.members.require_role(current_actor, "contributor", "maintainer")
+            self.members.require_role(current_actor, "contributor", "maintainer", "super_admin")
             knowledge_id = self._new_id(request, current_actor["id"])
             target = self._derive(
                 request,
@@ -336,7 +342,7 @@ class KnowledgeService:
 
         with self.write_lock.acquire():
             current_actor = self.members.get_member(actor["id"])
-            self.members.require_role(current_actor, "contributor", "maintainer")
+            self.members.require_role(current_actor, "contributor", "maintainer", "super_admin")
             target = self._derive(request, current_actor["id"], knowledge_id)
             relative_path = target.relative_path
             layer = target.layer
@@ -557,6 +563,7 @@ class KnowledgeService:
         }
         normalized_query = query.strip().casefold()
         items: List[Dict[str, Any]] = []
+        as_of = datetime.now(timezone.utc)
 
         for path, metadata, body in governance.active_entries(self.repo):
             try:
@@ -607,6 +614,7 @@ class KnowledgeService:
                     "tags": tags,
                     "relative_path": path.relative_to(self.repo).as_posix(),
                     "excerpt": excerpt,
+                    "review": governance.knowledge_review(metadata, as_of),
                 }
             )
 
@@ -643,6 +651,7 @@ class KnowledgeService:
             path,
             metadata,
         )
+        review = governance.knowledge_review(metadata, datetime.now(timezone.utc))
         return {
             "knowledge": {
                 "id": metadata["id"],
@@ -658,5 +667,6 @@ class KnowledgeService:
                 "source_references": metadata.get("source_references", []),
                 "relative_path": path.relative_to(self.repo).as_posix(),
                 "content": content,
+                "review": review,
             }
         }

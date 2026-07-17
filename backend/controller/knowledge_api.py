@@ -35,8 +35,8 @@ def get_options(
     member: Dict[str, str] = Depends(current_member),
     service: KnowledgeService = Depends(knowledge_service),
 ) -> Dict:
-    service.members.require_role(member, "contributor", "maintainer")
-    return service.options()
+    service.members.require_role(member, "contributor", "maintainer", "super_admin")
+    return service.options(include_disabled_domains=member["role"] == "super_admin")
 
 
 @router.get(

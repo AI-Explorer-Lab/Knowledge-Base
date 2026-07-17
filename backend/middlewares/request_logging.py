@@ -59,6 +59,8 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                     "path": request.url.path,
                     "status": response.status_code,
                     "duration_ms": duration_ms,
+                    "actor": getattr(request.state, "actor", None),
+                    "error_code": getattr(request.state, "error_code", None),
                 },
                 ensure_ascii=False,
                 separators=(",", ":"),

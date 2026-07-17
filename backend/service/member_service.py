@@ -16,7 +16,7 @@ from backend.service.repository_lock import RepositoryWriteLock
 
 MEMBER_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{1,63}$")
 SAFE_SEGMENT_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,47}$")
-MEMBER_ROLES = {"reader", "contributor", "maintainer"}
+MEMBER_ROLES = {"reader", "contributor", "maintainer", "super_admin"}
 MEMBER_STATUSES = {"active", "disabled"}
 
 
@@ -45,7 +45,7 @@ class MemberService:
         if not isinstance(members, list):
             raise self._configuration_error("members 必须是数组")
         seen = set()
-        active_maintainers = 0
+        active_governors = 0
         for index, member in enumerate(members):
             if not isinstance(member, dict):
                 raise self._configuration_error(f"members[{index}] 必须是对象")
@@ -70,10 +70,10 @@ class MemberService:
                 raise self._configuration_error(f"members[{index}].role 格式无效")
             if member.get("status") not in MEMBER_STATUSES:
                 raise self._configuration_error(f"members[{index}].status 格式无效")
-            if member["role"] == "maintainer" and member["status"] == "active":
-                active_maintainers += 1
-        if active_maintainers < 1:
-            raise self._configuration_error("配置必须保留至少一名启用的 Maintainer")
+            if member["role"] in {"maintainer", "super_admin"} and member["status"] == "active":
+                active_governors += 1
+        if active_governors < 1:
+            raise self._configuration_error("配置必须保留至少一名启用的 Maintainer 或 Super Admin")
 
         options = raw.get("knowledge_options", {})
         if not isinstance(options, dict):
@@ -90,7 +90,7 @@ class MemberService:
             if isinstance(value, str):
                 domain = {"id": value, "name": value, "description": ""}
             elif isinstance(value, dict):
-                if set(value) - {"id", "name", "description"}:
+                if set(value) - {"id", "name", "description", "status"}:
                     raise self._configuration_error(
                         f"business_domains[{index}] 包含未知字段"
                     )
@@ -98,6 +98,7 @@ class MemberService:
                     "id": value.get("id"),
                     "name": value.get("name"),
                     "description": value.get("description", ""),
+                    "status": value.get("status", "active"),
                 }
             else:
                 raise self._configuration_error(
@@ -107,6 +108,7 @@ class MemberService:
             domain_id = domain["id"]
             name = domain["name"]
             description = domain["description"]
+            status = domain.get("status", "active")
             if (
                 not isinstance(domain_id, str)
                 or not SAFE_SEGMENT_PATTERN.fullmatch(domain_id)
@@ -136,22 +138,33 @@ class MemberService:
                 raise self._configuration_error(
                     f"business_domains[{index}].description 格式无效"
                 )
+            if status not in {"active", "disabled"}:
+                raise self._configuration_error(
+                    f"business_domains[{index}].status 必须是 active 或 disabled"
+                )
             seen.add(domain_id)
             normalized.append(
                 {
                     "id": domain_id,
                     "name": name.strip(),
                     "description": description.strip(),
+                    "status": status,
                 }
             )
         return normalized
 
     def knowledge_options(self) -> Dict[str, Any]:
         options = deepcopy(self.load_config()["knowledge_options"])
-        options["business_domains"] = self.normalize_business_domains(
-            options.get("business_domains", [])
-        )
+        options["business_domains"] = [
+            domain
+            for domain in self.normalize_business_domains(options.get("business_domains", []))
+            if domain["status"] == "active"
+        ]
         return options
+
+    def list_business_domains(self) -> List[Dict[str, str]]:
+        options = self.load_config()["knowledge_options"]
+        return self.normalize_business_domains(options.get("business_domains", []))
 
     def list_members(self) -> List[Dict[str, str]]:
         members = deepcopy(self.load_config()["members"])
@@ -173,13 +186,13 @@ class MemberService:
     @staticmethod
     def _ensure_active_maintainer(members: List[Dict[str, str]]) -> None:
         if not any(
-            item["role"] == "maintainer" and item["status"] == "active"
+            item["role"] in {"maintainer", "super_admin"} and item["status"] == "active"
             for item in members
         ):
             raise ApiError(
                 409,
                 "last_maintainer_protected",
-                "不能降级或停用最后一名启用的 Maintainer",
+                "不能降级或停用最后一名启用的 Maintainer 或 Super Admin",
             )
 
     def _write_config(self, config: Dict[str, Any]) -> None:
@@ -226,7 +239,7 @@ class MemberService:
     def create_member(self, actor: Dict[str, str], request: MemberCreate) -> Dict[str, str]:
         with self.write_lock.acquire():
             current_actor = self.get_member(actor["id"])
-            self.require_role(current_actor, "maintainer")
+            self.require_role(current_actor, "maintainer", "super_admin")
             config = self.load_config()
             if any(item["id"].casefold() == request.id.casefold() for item in config["members"]):
                 raise ApiError(409, "member_exists", f"成员 ID 已存在：{request.id}")
@@ -257,11 +270,17 @@ class MemberService:
             raise ApiError(404, "member_not_found", "成员不存在")
         with self.write_lock.acquire():
             current_actor = self.get_member(actor["id"])
-            self.require_role(current_actor, "maintainer")
+            self.require_role(current_actor, "maintainer", "super_admin")
             config = self.load_config()
             target = next((item for item in config["members"] if item["id"] == member_id), None)
             if target is None:
                 raise ApiError(404, "member_not_found", "成员不存在")
+            if target["role"] == "super_admin":
+                raise ApiError(
+                    403,
+                    "super_admin_config_only",
+                    "超级管理员只能通过系统配置修改",
+                )
             before = deepcopy(target)
             updates = request.model_dump(exclude_none=True)
             target.update(updates)

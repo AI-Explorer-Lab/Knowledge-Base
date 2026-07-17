@@ -102,6 +102,9 @@ const knowledgeTypeUsage: Record<KnowledgeType, string> = {
 
 const layers = computed(() => props.options?.layers ?? [])
 const technicalDirections = computed(() => props.options?.technical_directions ?? [])
+const businessDomains = computed(() =>
+  props.options?.business_domains.filter((domain) => domain.status === 'active') ?? [],
+)
 
 const selectedLayer = computed<KnowledgeLayer>(() =>
   props.draft.scope === 'personal' ? 'layer0p' : (props.draft.layer ?? 'layer0t'),
@@ -176,7 +179,7 @@ watch(
       if (
         props.draft.layer === 'layer2'
         && props.draft.domain
-        && !props.options?.business_domains.some((domain) => domain.id === props.draft.domain)
+        && !businessDomains.value.some((domain) => domain.id === props.draft.domain)
       ) {
         delete props.draft.domain
       }
@@ -537,7 +540,7 @@ async function prefixLines(prefix: string) {
               <select id="domain" v-model="draft.domain" :class="{ invalid: errors.domain }">
                 <option value="" disabled>请选择业务领域</option>
                 <option
-                  v-for="domain in options?.business_domains ?? []"
+                  v-for="domain in businessDomains"
                   :key="domain.id"
                   :value="domain.id"
                 >{{ domain.name }} · {{ domain.id }}</option>
@@ -552,7 +555,7 @@ async function prefixLines(prefix: string) {
             >+ 新增业务领域</button>
           </div>
           <p v-if="errors.domain" class="field-error">{{ errors.domain }}</p>
-          <p v-if="!options?.business_domains.length" class="domain-empty-help">
+          <p v-if="!businessDomains.length" class="domain-empty-help">
             {{ canManageBusinessDomains ? '尚未配置业务领域，请先新增后再选择。' : '尚未配置业务领域，请联系 Maintainer 新增。' }}
           </p>
         </div>

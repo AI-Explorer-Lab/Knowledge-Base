@@ -5,22 +5,45 @@ import type {
   KnowledgeDraft,
   KnowledgeFile,
   KnowledgeLayer,
+  KnowledgeMaturity,
   KnowledgeListResponse,
   KnowledgeOptions,
+  KnowledgeReview,
   KnowledgeTemplate,
   KnowledgeType,
   Member,
   MembersResponse,
   PreviewResponse,
   Role,
+  AssignableRole,
+  AuditListResponse,
+  AuditRecord,
+  SuperAdminAction,
+  SuperAdminCommitResponse,
+  SuperAdminKnowledge,
+  SuperAdminKnowledgeInput,
+  SuperAdminKnowledgeListResponse,
+  SuperAdminPreviewResponse,
   TechnicalDirection,
 } from '@/types'
 import { ApiError } from '@/types'
 
 const wait = (milliseconds = 180) => new Promise((resolve) => globalThis.setTimeout(resolve, milliseconds))
 
+function mockKnowledgeReview(baseAt: string, maturity: KnowledgeMaturity): KnowledgeReview {
+  const reviewDays = maturity === 'proven' ? 60 : 30
+  const nextReview = new Date(Date.parse(baseAt) + reviewDays * 24 * 60 * 60 * 1000)
+  const beijingTime = new Date(nextReview.getTime() + 8 * 60 * 60 * 1000)
+    .toISOString()
+    .replace('Z', '+08:00')
+  return {
+    next_review_at: beijingTime,
+    overdue: Date.now() >= nextReview.getTime(),
+  }
+}
+
 const members: Member[] = [
-  { id: 'zhangsan', display_name: '张三', role: 'maintainer', status: 'active' },
+  { id: 'zhangsan', display_name: '张三', role: 'super_admin', status: 'active' },
   { id: 'lisi', display_name: '李四', role: 'contributor', status: 'active' },
   { id: 'wangwu', display_name: '王五', role: 'reader', status: 'active' },
 ]
@@ -41,6 +64,7 @@ const seededFiles: KnowledgeFile[] = [
     source_references: ['个人调试复盘'],
     relative_path: 'personal-prefernece/zhangsan/knowledge/guidelines/PK-ZS-GDL-001.md',
     content: '启动服务前，先确认目标端口没有被占用，并检查服务监听地址。',
+    review: mockKnowledgeReview('2026-07-12T10:20:00Z', 'draft'),
   },
   {
     id: 'TC-GDL-001',
@@ -56,6 +80,7 @@ const seededFiles: KnowledgeFile[] = [
     source_references: ['团队协作约定'],
     relative_path: 'team-conventions/guidelines/TC-GDL-001.md',
     content: '提交信息需要说明变更目的，并保持一次提交只处理一个清晰主题。',
+    review: mockKnowledgeReview('2026-07-12T09:10:00Z', 'verified'),
   },
   {
     id: 'TK-GDL-001',
@@ -71,6 +96,7 @@ const seededFiles: KnowledgeFile[] = [
     source_references: ['团队架构评审'],
     relative_path: 'tech-wiki/patterns/TK-GDL-001.md',
     content: '所有人工知识在写入前都必须经过元数据、路径、权限和索引校验。',
+    review: mockKnowledgeReview('2026-07-11T08:40:00Z', 'verified'),
   },
   {
     id: 'PJ-DEC-001',
@@ -86,6 +112,7 @@ const seededFiles: KnowledgeFile[] = [
     source_references: ['项目复盘'],
     relative_path: 'docs/knowledge/decisions/PJ-DEC-001.md',
     content: '项目知识按决策、指南和流程拆分，避免把阶段性信息混入稳定技术规范。',
+    review: mockKnowledgeReview('2026-07-09T03:15:00Z', 'proven'),
   },
 ]
 const createdFiles = new Map<string, KnowledgeFile>(
@@ -115,9 +142,9 @@ const options: KnowledgeOptions = {
     { value: 'anti-patterns', label: '反模式' },
   ],
   business_domains: [
-    { id: 'order', name: '订单', description: '订单履约与交易过程' },
-    { id: 'customer', name: '客户', description: '客户关系与客户服务' },
-    { id: 'billing', name: '结算', description: '计费、对账与结算' },
+    { id: 'order', name: '订单', description: '订单履约与交易过程', status: 'active' },
+    { id: 'customer', name: '客户', description: '客户关系与客户服务', status: 'active' },
+    { id: 'billing', name: '结算', description: '计费、对账与结算', status: 'active' },
   ],
   preview_ttl_seconds: 600,
 }
@@ -381,9 +408,10 @@ export async function mockGetCurrentUser(): Promise<CurrentUserResponse> {
     member,
     permissions: {
       can_browse_knowledge: true,
-      can_create_knowledge: member.role === 'contributor' || member.role === 'maintainer',
-      can_manage_members: member.role === 'maintainer',
-      can_manage_business_domains: member.role === 'maintainer',
+      can_create_knowledge: ['contributor', 'maintainer', 'super_admin'].includes(member.role),
+      can_manage_members: ['maintainer', 'super_admin'].includes(member.role),
+      can_manage_business_domains: ['maintainer', 'super_admin'].includes(member.role),
+      can_super_admin: member.role === 'super_admin',
     },
     environment: 'development',
   }
@@ -407,7 +435,7 @@ export async function mockCreateBusinessDomain(payload: {
       fieldErrors: [{ field: 'id', message: '请使用其他领域标识' }],
     })
   }
-  const businessDomain = { ...payload }
+  const businessDomain: BusinessDomain = { ...payload, status: 'active' }
   options.business_domains.push(businessDomain)
   return { business_domain: structuredClone(businessDomain) }
 }
@@ -460,6 +488,7 @@ export async function mockCreateKnowledge(
     source_references: response.preview.source_references,
     relative_path: response.preview.relative_path,
     content: draft.content,
+    review: mockKnowledgeReview(response.preview.created_at, response.preview.maturity),
   })
   return {
     knowledge: {
@@ -476,7 +505,7 @@ export async function mockCreateKnowledge(
       source_references: response.preview.source_references,
       relative_path: response.preview.relative_path,
     },
-    actor: { id: 'zhangsan', display_name: '张三', role: 'maintainer' },
+    actor: { id: 'zhangsan', display_name: '张三', role: 'super_admin' },
     writes: [
       { key: 'knowledge_file', label: 'Markdown 知识文件已写入', status: 'completed', detail: response.preview.relative_path },
       { key: 'layer_catalog', label: 'Layer B 分类索引已更新', status: 'completed', detail: '分类目录已同步' },
@@ -536,7 +565,7 @@ export async function mockGetMembers(): Promise<MembersResponse> {
 export async function mockCreateMember(payload: {
   id: string
   display_name: string
-  role: Role
+  role: AssignableRole
 }): Promise<{ member: Member }> {
   await wait()
   if (members.some((member) => member.id === payload.id)) {
@@ -554,6 +583,12 @@ export async function mockUpdateMember(
   await wait()
   const member = members.find((candidate) => candidate.id === memberId)
   if (!member) throw new ApiError('成员不存在', { status: 404, code: 'MEMBER_NOT_FOUND' })
+  if (member.role === 'super_admin') {
+    throw new ApiError('超级管理员只能通过系统配置修改', {
+      status: 403,
+      code: 'super_admin_config_only',
+    })
+  }
   const activeMaintainers = members.filter(
     (candidate) => candidate.role === 'maintainer' && candidate.status === 'active',
   )
@@ -570,4 +605,225 @@ export async function mockUpdateMember(
   }
   Object.assign(member, payload)
   return { member: structuredClone(member) }
+}
+
+const archivedKnowledge = new Set<string>()
+const adminPreviewTokens = new Map<string, { id: string; payload: SuperAdminKnowledgeInput }>()
+const auditRecords: AuditRecord[] = []
+
+function mockDomainFor(file: KnowledgeFile): string | null {
+  if (file.layer !== 'layer2') return null
+  const parts = file.relative_path.split('/')
+  return parts[0] === 'biz-wiki' ? parts[1] ?? null : null
+}
+
+function mockBaseDigest(file: KnowledgeFile): string {
+  const seed = `${file.id}:${file.revision ?? 1}:${file.relative_path}:${file.title}`
+  return Array.from({ length: 64 }, (_, index) => seed.charCodeAt(index % seed.length).toString(16).at(-1)).join('')
+}
+
+function asSuperAdminKnowledge(file: KnowledgeFile): SuperAdminKnowledge {
+  const { review: _review, ...knowledge } = structuredClone(file)
+  return {
+    ...knowledge,
+    domain: mockDomainFor(file),
+    archived: archivedKnowledge.has(file.id),
+    conflict_status: 'none',
+    promotion: { candidate: false, target_layer: null, target_path: null, previous_layers: [] },
+    evidence: { contributors: [], references: [], validations: [] },
+    revision: file.revision ?? 1,
+    updated_at: file.updated_at ?? null,
+    updated_by: file.updated_by ?? null,
+    base_digest: mockBaseDigest(file),
+  }
+}
+
+function mockAdminTargetPath(id: string, payload: SuperAdminKnowledgeInput): string {
+  const category = {
+    model: 'models',
+    decision: 'decisions',
+    guideline: 'guidelines',
+    pitfall: 'pitfalls',
+    process: 'processes',
+  }[payload.type]
+  if (payload.scope === 'personal') {
+    return `personal-prefernece/${payload.owner_id}/knowledge/${category}/${id}.md`
+  }
+  if (payload.layer === 'layer0t') return `team-conventions/${category}/${id}.md`
+  if (payload.layer === 'layer1') return `tech-wiki/${category}/${id}.md`
+  if (payload.layer === 'layer2') return `biz-wiki/${payload.domain}/${category}/${id}.md`
+  return `docs/knowledge/${category}/${id}.md`
+}
+
+function addMockAudit(action: string, targetId: string, detail: unknown) {
+  auditRecords.unshift({
+    timestamp: new Date().toISOString(),
+    actor: 'zhangsan',
+    action,
+    target_id: targetId,
+    detail,
+    session: 'web:super-admin',
+  })
+}
+
+export async function mockUpdateBusinessDomain(
+  domainId: string,
+  payload: Partial<Pick<BusinessDomain, 'name' | 'description' | 'status'>>,
+): Promise<{ business_domain: BusinessDomain }> {
+  await wait()
+  const domain = options.business_domains.find((item) => item.id === domainId)
+  if (!domain) throw new ApiError('业务领域不存在', { status: 404, code: 'business_domain_not_found' })
+  const before = structuredClone(domain)
+  Object.assign(domain, payload)
+  addMockAudit('business-domain-update', domainId, { before, after: domain })
+  return { business_domain: structuredClone(domain) }
+}
+
+export async function mockListSuperAdminKnowledge(
+  state: 'active' | 'archived' | 'all' = 'active',
+  query = '',
+  filters: {
+    layer?: KnowledgeLayer
+    scope?: 'personal' | 'team'
+    maturity?: 'draft' | 'verified' | 'proven'
+  } = {},
+): Promise<SuperAdminKnowledgeListResponse> {
+  await wait(100)
+  const normalized = query.trim().toLowerCase()
+  const all = [...createdFiles.values()].map(asSuperAdminKnowledge)
+  const items = all
+    .filter((item) => state === 'all' || (state === 'archived') === item.archived)
+    .filter((item) => !filters.layer || item.layer === filters.layer)
+    .filter((item) => !filters.scope || item.scope === filters.scope)
+    .filter((item) => !filters.maturity || item.maturity === filters.maturity)
+    .filter((item) => !normalized || [item.id, item.title, item.type, ...item.tags].join(' ').toLowerCase().includes(normalized))
+    .map(({ content: _content, evidence: _evidence, promotion: _promotion, ...item }) => item)
+  return {
+    items,
+    counts: {
+      active: all.filter((item) => !item.archived).length,
+      archived: all.filter((item) => item.archived).length,
+    },
+    total: items.length,
+  }
+}
+
+export async function mockGetSuperAdminKnowledge(
+  knowledgeId: string,
+): Promise<{ knowledge: SuperAdminKnowledge }> {
+  await wait(100)
+  const file = createdFiles.get(knowledgeId)
+  if (!file) throw new ApiError('知识不存在', { status: 404, code: 'knowledge_not_found' })
+  return { knowledge: asSuperAdminKnowledge(file) }
+}
+
+export async function mockPreviewSuperAdminKnowledge(
+  knowledgeId: string,
+  payload: SuperAdminKnowledgeInput,
+): Promise<SuperAdminPreviewResponse> {
+  await wait()
+  const file = createdFiles.get(knowledgeId)
+  if (!file) throw new ApiError('知识不存在', { status: 404, code: 'knowledge_not_found' })
+  if (payload.base_digest !== mockBaseDigest(file)) {
+    throw new ApiError('知识已被其他操作修改，请重新加载', { status: 409, code: 'knowledge_changed' })
+  }
+  const before = asSuperAdminKnowledge(file)
+  const nextRevision = (file.revision ?? 1) + 1
+  const updatedAt = new Date().toISOString()
+  const next: KnowledgeFile = {
+    ...file,
+    title: payload.title,
+    type: payload.type,
+    tags: [...payload.tags],
+    source_references: [...payload.source_references],
+    content: payload.content,
+    scope: payload.scope,
+    owner_id: payload.scope === 'personal' ? payload.owner_id ?? null : null,
+    layer: payload.scope === 'personal' ? 'layer0p' : payload.layer ?? 'layer3',
+    technical_direction: payload.technical_direction ?? null,
+    maturity: 'draft',
+    relative_path: mockAdminTargetPath(knowledgeId, payload),
+    revision: nextRevision,
+    updated_at: updatedAt,
+    updated_by: 'zhangsan',
+    review: mockKnowledgeReview(updatedAt, 'draft'),
+  }
+  const after = asSuperAdminKnowledge(next)
+  const changedFields = ['title', 'type', 'tags', 'source_references', 'content', 'relative_path']
+    .filter((field) => JSON.stringify(before[field as keyof SuperAdminKnowledge]) !== JSON.stringify(after[field as keyof SuperAdminKnowledge]))
+  const token = crypto.randomUUID()
+  adminPreviewTokens.set(token, { id: knowledgeId, payload: structuredClone(payload) })
+  return {
+    before,
+    after,
+    changed_fields: changedFields,
+    consequences: [
+      `revision ${before.revision} → ${after.revision}`,
+      `maturity ${before.maturity} → draft`,
+      '旧版本证据保留，但不再推动当前版本成熟度',
+    ],
+    checks: [
+      { key: 'permission', label: '超级管理员身份', status: 'passed', detail: 'zhangsan' },
+      { key: 'version', label: '原版本未变化', status: 'passed', detail: payload.base_digest },
+    ],
+    preview_token: token,
+    expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+  }
+}
+
+export async function mockCommitSuperAdminKnowledge(
+  knowledgeId: string,
+  payload: SuperAdminKnowledgeInput,
+  previewToken: string,
+): Promise<SuperAdminCommitResponse> {
+  await wait()
+  const preview = adminPreviewTokens.get(previewToken)
+  if (!preview || preview.id !== knowledgeId || JSON.stringify(preview.payload) !== JSON.stringify(payload)) {
+    throw new ApiError('修改内容已变化，请重新预览', { status: 409, code: 'preview_form_changed' })
+  }
+  const response = await mockPreviewSuperAdminKnowledge(knowledgeId, payload)
+  const next = response.after
+  createdFiles.set(knowledgeId, {
+    ...structuredClone(next),
+    review: mockKnowledgeReview(next.updated_at ?? next.created_at, next.maturity),
+  })
+  adminPreviewTokens.delete(previewToken)
+  addMockAudit('admin-knowledge-update', knowledgeId, { reason: payload.reason, revision: next.revision })
+  return {
+    knowledge: next,
+    writes: [
+      { key: 'knowledge_file', label: '知识文件', status: 'completed', detail: next.relative_path },
+      { key: 'layer_catalog', label: 'Layer B 分类目录', status: 'completed', detail: '受影响分类目录已更新' },
+      { key: 'global_catalog', label: 'Layer A 全景目录', status: 'completed', detail: 'knowledge-catalog.md' },
+      { key: 'audit_log', label: '审计日志', status: 'completed', detail: 'log.md' },
+    ],
+    audit_logged: true,
+    idempotent_replay: false,
+  }
+}
+
+export async function mockExecuteSuperAdminAction(
+  knowledgeId: string,
+  payload: {
+    action: SuperAdminAction
+    reason: string
+    target_layer?: 'layer1' | 'layer2'
+    domain?: string
+    owner_confirmed_by?: string
+  },
+): Promise<{ knowledge: SuperAdminKnowledge; action: string; audit_logged: boolean }> {
+  await wait()
+  const file = createdFiles.get(knowledgeId)
+  if (!file) throw new ApiError('知识不存在', { status: 404, code: 'knowledge_not_found' })
+  if (payload.action === 'archive') archivedKnowledge.add(knowledgeId)
+  if (payload.action === 'restore') archivedKnowledge.delete(knowledgeId)
+  addMockAudit('admin-governance-action', knowledgeId, payload)
+  return { knowledge: asSuperAdminKnowledge(file), action: payload.action, audit_logged: true }
+}
+
+export async function mockGetAuditRecords(query = ''): Promise<AuditListResponse> {
+  await wait(80)
+  const normalized = query.trim().toLowerCase()
+  const items = auditRecords.filter((item) => !normalized || JSON.stringify(item).toLowerCase().includes(normalized))
+  return { items: structuredClone(items), total: items.length }
 }

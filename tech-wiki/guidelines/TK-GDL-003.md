@@ -18,6 +18,7 @@
     "target_layer": null,
     "target_path": null
   },
+  "revision": 2,
   "scope": "team",
   "source_references": [
     "团队实战经验总结"
@@ -29,7 +30,9 @@
   ],
   "technical_direction": "patterns",
   "title": "bash生成脚本一键运行前后端",
-  "type": "guideline"
+  "type": "guideline",
+  "updated_at": "2026-07-17T04:54:54Z",
+  "updated_by": "zhangsan"
 }
 ```
 
@@ -37,7 +40,7 @@
 
 ## 模式摘要
 
-生成bash脚本一键运行前后端
+生成bash脚本一键运行前后端，且端口号保持一致
 ## 复用条件
 
 当一个项目里既设计里后端，又设计了前端的时候
