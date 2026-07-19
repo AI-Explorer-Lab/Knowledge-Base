@@ -1,6 +1,7 @@
 import contextlib
 import importlib.util
 import io
+import json
 import tempfile
 import unittest
 from datetime import datetime, timezone
@@ -602,6 +603,114 @@ class KnowledgeGovernanceTest(unittest.TestCase):
         self.assertEqual(current["maturity"], "verified")
         self.assertEqual(current["evidence"]["references"][-1]["revision"], 2)
         self.assertEqual(current["evidence"]["validations"][-1]["revision"], 2)
+
+    def test_next_knowledge_id_uses_canonical_layer_type_sequence(self):
+        governance.create_knowledge_entry(
+            repo=self.repo,
+            path=self.repo / "tech-wiki/guidelines/TK-GDL-003.md",
+            knowledge_id="TK-GDL-003",
+            title="已有技术知识",
+            knowledge_type="guideline",
+            layer="layer1",
+            scope="team",
+            sources=["测试"],
+            content="已有内容。",
+            actor="alice",
+            role="contributor",
+        )
+
+        self.assertEqual(
+            governance.next_knowledge_id(
+                self.repo,
+                layer="layer1",
+                knowledge_type="guideline",
+            ),
+            "TK-GDL-004",
+        )
+        (self.repo / ".knowledge-preview-nonces.json").write_text(
+            json.dumps(
+                {
+                    "preview": {
+                        "status": "previewed",
+                        "exp": int(datetime.now(timezone.utc).timestamp()) + 60,
+                        "knowledge_id": "TK-GDL-004",
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            governance.next_knowledge_id(
+                self.repo,
+                layer="layer1",
+                knowledge_type="guideline",
+            ),
+            "TK-GDL-005",
+        )
+        self.assertEqual(
+            governance.next_knowledge_id(
+                self.repo,
+                layer="layer3",
+                knowledge_type="pitfall",
+            ),
+            "PJ-PTF-001",
+        )
+
+    def test_admin_reclassifies_layer_and_corrects_noncanonical_id(self):
+        source = self.repo / "docs/knowledge/guidelines/PJ-GDL-HASH.md"
+        governance.create_knowledge_entry(
+            repo=self.repo,
+            path=source,
+            knowledge_id="PJ-GDL-HASH",
+            title="通用技术知识",
+            knowledge_type="guideline",
+            layer="layer3",
+            scope="team",
+            sources=["task:fixture"],
+            content="这条知识可以跨项目复用。",
+            actor="orchestrator",
+            role="contributor",
+            tags=["architecture"],
+            project_id="accounting",
+            archive_idempotency_key="fixture-archive-key",
+        )
+        target = self.repo / "tech-wiki/guidelines/TK-GDL-001.md"
+        metadata, _body = governance.read_entry(source)
+
+        updated, written_path, action = governance.update_knowledge_entry(
+            repo=self.repo,
+            source_path=source,
+            target_path=target,
+            updates={
+                "title": metadata["title"],
+                "type": metadata["type"],
+                "layer": "layer1",
+                "scope": governance.metadata_scope(metadata),
+                "tags": metadata["tags"],
+                "source_references": metadata["source_references"],
+                "technical_direction": metadata.get("technical_direction"),
+                "owner_id": metadata.get("owner_id"),
+                "project_id": metadata.get("project_id"),
+            },
+            content="这条知识可以跨项目复用。",
+            actor="root",
+            role="super_admin",
+            reason="修正自动归档层级和编号",
+            request_id="reclassify-test-request",
+            new_knowledge_id="TK-GDL-001",
+        )
+
+        self.assertEqual(action, "admin-knowledge-reclassify")
+        self.assertEqual(written_path, target.resolve())
+        self.assertFalse(source.exists())
+        self.assertEqual(updated["id"], "TK-GDL-001")
+        self.assertEqual(updated["layer"], "layer1")
+        self.assertEqual(updated["revision"], 2)
+        history = updated["promotion"]["previous_layers"][-1]
+        self.assertEqual(history["from"], "layer3")
+        self.assertEqual(history["to"], "layer1")
+        self.assertEqual(history["from_id"], "PJ-GDL-HASH")
+        self.assertEqual(history["to_id"], "TK-GDL-001")
 
 
 if __name__ == "__main__":
