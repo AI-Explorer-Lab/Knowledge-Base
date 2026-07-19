@@ -5,9 +5,19 @@
   "created_at": "2026-07-19T03:27:48Z",
   "evidence": {
     "contributors": [
-      "orchestrator"
+      "orchestrator",
+      "zhangsan"
     ],
-    "references": [],
+    "references": [
+      {
+        "contributor": "zhangsan",
+        "project_id": "accounting",
+        "referenced_at": "2026-07-19T10:17:59Z",
+        "revision": 1,
+        "used_in": "generation",
+        "workflow_id": "20260719-173617-0d8e6e51"
+      }
+    ],
     "validations": []
   },
   "id": "TK-PTF-001",
