@@ -31,6 +31,14 @@ TYPE_CATEGORIES = {
     "pitfall": "pitfalls",
     "process": "processes",
 }
+TYPE_CODES = {
+    "model": "MDL",
+    "decision": "DEC",
+    "guideline": "GDL",
+    "pitfall": "PTF",
+    "process": "PRC",
+}
+LAYER_PREFIXES = {"layer0t": "TC", "layer1": "TK", "layer2": "BK", "layer3": "PJ"}
 TECHNICAL_DIRECTIONS = {"patterns", "anti-patterns"}
 LAYERS = {"layer0p", "layer0t", "layer1", "layer2", "layer3"}
 TEAM_LAYERS = {"layer0t", "layer1", "layer2", "layer3"}
@@ -57,6 +65,9 @@ CATALOG_END = "<!-- knowledge-index:end -->"
 SUMMARY_START = "<!-- knowledge-summary:start -->"
 SUMMARY_END = "<!-- knowledge-summary:end -->"
 SPECIAL_MARKDOWN_FILES = {"catalog.md", "migration-log.md"}
+PROJECT_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
+KNOWLEDGE_ID_PATTERN = re.compile(r"[A-Z0-9][A-Z0-9-]{2,127}")
+ARCHIVE_IDEMPOTENCY_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{2,127}")
 
 
 class GovernanceError(Exception):
@@ -203,6 +214,58 @@ def entry_revision(metadata: Dict[str, Any]) -> int:
     return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else 1
 
 
+def next_knowledge_id(
+    repo: Path,
+    *,
+    layer: str,
+    knowledge_type: str,
+    reserved_ids: Sequence[str] = (),
+) -> str:
+    """Allocate the next canonical sequential ID while the caller holds the write lock."""
+
+    if layer not in LAYER_PREFIXES:
+        raise GovernanceError(f"层级不支持团队顺序编号：{layer}")
+    if knowledge_type not in TYPE_CODES:
+        raise GovernanceError(f"未知知识类型：{knowledge_type}")
+    base = f"{LAYER_PREFIXES[layer]}-{TYPE_CODES[knowledge_type]}"
+    pattern = re.compile(rf"^{re.escape(base)}-(\d+)$")
+    occupied = {str(value) for value in reserved_ids}
+    occupied.update(_reserved_preview_knowledge_ids(repo))
+    for path in iter_candidate_files(repo):
+        if is_entry_file(path):
+            occupied.add(str(read_entry(path)[0].get("id", "")))
+    numbers = [
+        int(match.group(1))
+        for value in occupied
+        if (match := pattern.fullmatch(value))
+    ]
+    return f"{base}-{max(numbers, default=0) + 1:03d}"
+
+
+def _reserved_preview_knowledge_ids(repo: Path) -> set[str]:
+    """Include still-valid browser previews in cross-surface ID allocation."""
+
+    path = repo.resolve() / ".knowledge-preview-nonces.json"
+    if not path.is_file():
+        return set()
+    try:
+        state = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise GovernanceError("知识预览编号状态无效") from exc
+    if not isinstance(state, dict):
+        raise GovernanceError("知识预览编号状态必须是对象")
+    now = int(datetime.now(timezone.utc).timestamp())
+    return {
+        str(record["knowledge_id"])
+        for record in state.values()
+        if isinstance(record, dict)
+        and record.get("status") in {"previewed", "pending"}
+        and isinstance(record.get("exp"), int)
+        and record["exp"] >= now
+        and isinstance(record.get("knowledge_id"), str)
+    }
+
+
 def record_revision(record: Dict[str, Any]) -> int:
     """Treat evidence created before revision support as revision one."""
 
@@ -267,6 +330,18 @@ def validate_metadata(metadata: Dict[str, Any], body: str) -> List[str]:
         errors.append(f"maturity 必须是以下值之一：{', '.join(sorted(MATURITIES))}")
     if metadata.get("conflict_status") not in CONFLICT_STATES:
         errors.append(f"conflict_status 必须是以下值之一：{', '.join(sorted(CONFLICT_STATES))}")
+
+    project_id = metadata.get("project_id")
+    if project_id is not None and (
+        not isinstance(project_id, str) or not PROJECT_ID_PATTERN.fullmatch(project_id)
+    ):
+        errors.append("project_id 必须是安全的非空项目标识")
+    archive_idempotency_key = metadata.get("archive_idempotency_key")
+    if archive_idempotency_key is not None and (
+        not isinstance(archive_idempotency_key, str)
+        or not ARCHIVE_IDEMPOTENCY_PATTERN.fullmatch(archive_idempotency_key)
+    ):
+        errors.append("archive_idempotency_key 格式无效")
 
     if "revision" in metadata and (
         not isinstance(metadata["revision"], int)
@@ -689,6 +764,8 @@ def build_knowledge_metadata(
     tags: Optional[Sequence[str]] = None,
     technical_direction: Optional[str] = None,
     owner_id: Optional[str] = None,
+    project_id: Optional[str] = None,
+    archive_idempotency_key: Optional[str] = None,
     created_at: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Build the canonical metadata used by every knowledge creation surface.
@@ -726,6 +803,10 @@ def build_knowledge_metadata(
         metadata["owner_id"] = owner_id
     if technical_direction is not None:
         metadata["technical_direction"] = technical_direction
+    if project_id is not None:
+        metadata["project_id"] = project_id
+    if archive_idempotency_key is not None:
+        metadata["archive_idempotency_key"] = archive_idempotency_key
     return metadata
 
 
@@ -745,6 +826,8 @@ def create_knowledge_entry(
     tags: Optional[Sequence[str]] = None,
     technical_direction: Optional[str] = None,
     owner_id: Optional[str] = None,
+    project_id: Optional[str] = None,
+    archive_idempotency_key: Optional[str] = None,
     session: str = "manual",
     created_at: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -779,6 +862,8 @@ def create_knowledge_entry(
         tags=tags,
         technical_direction=technical_direction,
         owner_id=owner_id,
+        project_id=project_id,
+        archive_idempotency_key=archive_idempotency_key,
         created_at=created_at,
     )
     body = f"# {title}\n\n{content.strip()}\n"
@@ -824,6 +909,7 @@ ADMIN_EDITABLE_FIELDS = {
     "source_references",
     "technical_direction",
     "owner_id",
+    "project_id",
 }
 
 
@@ -902,6 +988,7 @@ def update_knowledge_entry(
     role: str,
     reason: str,
     request_id: str,
+    new_knowledge_id: Optional[str] = None,
     updated_at: Optional[str] = None,
     session: str = "web:super-admin",
 ) -> Tuple[Dict[str, Any], Path, str]:
@@ -920,6 +1007,20 @@ def update_knowledge_entry(
     if target != source and target.exists():
         raise GovernanceError(f"目标路径已存在：{target.relative_to(repo)}")
 
+    resolved_id = str(new_knowledge_id or metadata.get("id", "")).strip()
+    if new_knowledge_id is not None and not KNOWLEDGE_ID_PATTERN.fullmatch(resolved_id):
+        raise GovernanceError("新知识 ID 格式无效")
+    if resolved_id != metadata.get("id"):
+        if target.name != f"{resolved_id}.md":
+            raise GovernanceError("修改知识 ID 时目标文件名必须与新 ID 一致")
+        if resolved_id in _reserved_preview_knowledge_ids(repo):
+            raise GovernanceError(f"知识 ID 已被有效预览占用：{resolved_id}")
+        for candidate in iter_candidate_files(repo):
+            if candidate.resolve() == source:
+                continue
+            if is_entry_file(candidate) and read_entry(candidate)[0].get("id") == resolved_id:
+                raise GovernanceError(f"知识 ID 已存在：{resolved_id}")
+
     next_metadata, next_body = prepare_admin_update(
         metadata,
         updates=updates,
@@ -927,6 +1028,23 @@ def update_knowledge_entry(
         actor=actor,
         updated_at=updated_at,
     )
+    next_metadata["id"] = resolved_id
+    if metadata.get("layer") != next_metadata.get("layer"):
+        next_metadata.setdefault("promotion", {}).setdefault(
+            "previous_layers", []
+        ).append(
+            {
+                "from": str(metadata.get("layer")),
+                "to": str(next_metadata.get("layer")),
+                "from_path": source.relative_to(repo).as_posix(),
+                "to_path": target.relative_to(repo).as_posix(),
+                "from_id": str(metadata.get("id")),
+                "to_id": resolved_id,
+                "actor": actor,
+                "changed_at": str(next_metadata["updated_at"]),
+                "reason": reason,
+            }
+        )
     errors = validate_metadata(next_metadata, next_body)
     errors.extend(validate_path_metadata(repo, target, next_metadata))
     if errors:
@@ -944,7 +1062,14 @@ def update_knowledge_entry(
     )
     if body != next_body and "content" not in changed_fields:
         changed_fields.append("content")
-    action = "admin-knowledge-move" if source != target else "admin-knowledge-update"
+    if metadata.get("id") != next_metadata.get("id"):
+        changed_fields.append("id")
+    if metadata.get("id") != next_metadata.get("id"):
+        action = "admin-knowledge-reclassify"
+    elif source != target:
+        action = "admin-knowledge-move"
+    else:
+        action = "admin-knowledge-update"
     detail = json.dumps(
         {
             "request_id": request_id,
@@ -956,6 +1081,7 @@ def update_knowledge_entry(
                 "path": source_relative,
                 "content_sha256": before_hash,
                 "metadata": {
+                    "id": metadata.get("id"),
                     "title": metadata.get("title"),
                     "type": metadata.get("type"),
                     "scope": metadata_scope(metadata),
@@ -963,6 +1089,7 @@ def update_knowledge_entry(
                     "owner_id": metadata.get("owner_id"),
                     "tags": metadata.get("tags", []),
                     "source_references": metadata.get("source_references", []),
+                    "project_id": metadata.get("project_id"),
                 },
             },
             "after": {
@@ -971,6 +1098,7 @@ def update_knowledge_entry(
                 "path": target_relative,
                 "content_sha256": after_hash,
                 "metadata": {
+                    "id": next_metadata.get("id"),
                     "title": next_metadata.get("title"),
                     "type": next_metadata.get("type"),
                     "scope": metadata_scope(next_metadata),
@@ -978,6 +1106,7 @@ def update_knowledge_entry(
                     "owner_id": next_metadata.get("owner_id"),
                     "tags": next_metadata.get("tags", []),
                     "source_references": next_metadata.get("source_references", []),
+                    "project_id": next_metadata.get("project_id"),
                 },
             },
             "result": "success",

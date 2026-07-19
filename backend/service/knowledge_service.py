@@ -8,7 +8,6 @@ from typing import Any, Dict, List, Optional, Tuple
 from tools import knowledge_governance as governance
 from backend.constant.enums import KnowledgeLayer
 from backend.constant.values import (
-    LAYER_PREFIXES,
     TYPE_CATEGORIES,
     TYPE_CODES,
 )
@@ -68,14 +67,18 @@ class KnowledgeService:
         return value.upper() or "MB"
 
     def _new_id(self, request: KnowledgeInput, actor: str) -> str:
+        occupied = self.preview_nonces.reserved_knowledge_ids()
+        if request.scope != "personal":
+            assert request.layer is not None
+            return governance.next_knowledge_id(
+                self.repo,
+                layer=request.layer,
+                knowledge_type=request.type,
+                reserved_ids=sorted(occupied),
+            )
         if request.scope == "personal":
             code = TYPE_CODES[request.type]
             base = f"PK-{self._member_segment(actor)}-{code}"
-        else:
-            assert request.layer is not None
-            code = TYPE_CODES[request.type]
-            base = f"{LAYER_PREFIXES[request.layer]}-{code}"
-        occupied = self.preview_nonces.reserved_knowledge_ids()
         for path in governance.iter_candidate_files(self.repo):
             if governance.is_entry_file(path):
                 occupied.add(str(governance.read_entry(path)[0].get("id", "")))

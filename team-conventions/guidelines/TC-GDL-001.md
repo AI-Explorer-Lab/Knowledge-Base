@@ -6,7 +6,24 @@
     "contributors": [
       "zhangsan"
     ],
-    "references": [],
+    "references": [
+      {
+        "contributor": "zhangsan",
+        "project_id": "accounting",
+        "referenced_at": "2026-07-18T16:06:35Z",
+        "revision": 1,
+        "used_in": "generation",
+        "workflow_id": "20260719-000039-922e51b2"
+      },
+      {
+        "contributor": "zhangsan",
+        "project_id": "accounting",
+        "referenced_at": "2026-07-19T03:27:51Z",
+        "revision": 1,
+        "used_in": "generation",
+        "workflow_id": "20260719-110212-66531cfe"
+      }
+    ],
     "validations": []
   },
   "id": "TC-GDL-001",
