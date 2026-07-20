@@ -66,8 +66,15 @@ SUMMARY_START = "<!-- knowledge-summary:start -->"
 SUMMARY_END = "<!-- knowledge-summary:end -->"
 SPECIAL_MARKDOWN_FILES = {"catalog.md", "migration-log.md"}
 PROJECT_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
+ACTOR_ID_PATTERN = re.compile(r"[a-z0-9][a-z0-9._-]{1,63}")
 KNOWLEDGE_ID_PATTERN = re.compile(r"[A-Z0-9][A-Z0-9-]{2,127}")
 ARCHIVE_IDEMPOTENCY_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{2,127}")
+RULE_APPLICABILITY_FIELDS = (
+    "project_ids",
+    "path_globs",
+    "technologies",
+    "stages",
+)
 
 
 class GovernanceError(Exception):
@@ -182,6 +189,49 @@ def ensure_list(value: Any, field: str, errors: List[str]) -> List[Any]:
         errors.append(f"{field} 必须是数组")
         return []
     return value
+
+
+def validate_rule_applicability(value: Any, errors: List[str]) -> None:
+    """Validate optional machine-readable scope without breaking legacy entries."""
+
+    if value is None:
+        return
+    if not isinstance(value, dict):
+        errors.append("applicability 必须是对象")
+        return
+    unexpected = set(value) - set(RULE_APPLICABILITY_FIELDS)
+    if unexpected:
+        errors.append(
+            "applicability 包含未知字段："
+            + ", ".join(sorted(str(item) for item in unexpected))
+        )
+    populated = False
+    for field in RULE_APPLICABILITY_FIELDS:
+        values = ensure_list(value.get(field, []), f"applicability.{field}", errors)
+        normalized: List[str] = []
+        for item in values:
+            if not isinstance(item, str) or not item.strip():
+                errors.append(f"applicability.{field} 中的每一项必须是非空字符串")
+                continue
+            item = item.strip()
+            if (
+                len(item) > 200
+                or any(ord(character) < 32 or ord(character) == 127 for character in item)
+            ):
+                errors.append(f"applicability.{field} 包含非法值")
+                continue
+            if field == "project_ids" and item != "*" and not PROJECT_ID_PATTERN.fullmatch(item):
+                errors.append("applicability.project_ids 必须是安全项目标识或 *")
+            if field == "path_globs":
+                parts = Path(item).parts
+                if item.startswith("/") or ".." in parts:
+                    errors.append("applicability.path_globs 必须是仓库内相对 glob")
+            if item in normalized:
+                errors.append(f"applicability.{field} 不应包含重复值")
+            normalized.append(item)
+        populated = populated or bool(normalized)
+    if not populated:
+        errors.append("applicability 至少要声明一个适用条件")
 
 
 def validate_record_fields(
@@ -384,6 +434,14 @@ def validate_metadata(metadata: Dict[str, Any], body: str) -> List[str]:
             errors.append("Layer 0-P 知识的 scope 必须是 personal")
         if "owner_id" in metadata:
             errors.append("团队知识不应保存 owner_id")
+
+    rule_owner = metadata.get("rule_owner")
+    if rule_owner is not None and (
+        not isinstance(rule_owner, str)
+        or not ACTOR_ID_PATTERN.fullmatch(rule_owner)
+    ):
+        errors.append("rule_owner 必须是安全的非空成员标识")
+    validate_rule_applicability(metadata.get("applicability"), errors)
 
     try:
         parse_time(metadata.get("created_at", ""))
@@ -910,6 +968,8 @@ ADMIN_EDITABLE_FIELDS = {
     "technical_direction",
     "owner_id",
     "project_id",
+    "rule_owner",
+    "applicability",
 }
 
 
@@ -928,7 +988,12 @@ def prepare_admin_update(
         raise GovernanceError(f"管理员修改包含不可编辑字段：{', '.join(sorted(unexpected))}")
     next_metadata = deepcopy(metadata)
     for field, value in updates.items():
-        if field in {"owner_id", "technical_direction"} and value is None:
+        if field in {
+            "owner_id",
+            "technical_direction",
+            "rule_owner",
+            "applicability",
+        } and value is None:
             next_metadata.pop(field, None)
         else:
             next_metadata[field] = deepcopy(value)
@@ -1090,6 +1155,8 @@ def update_knowledge_entry(
                     "tags": metadata.get("tags", []),
                     "source_references": metadata.get("source_references", []),
                     "project_id": metadata.get("project_id"),
+                    "rule_owner": metadata.get("rule_owner"),
+                    "applicability": metadata.get("applicability"),
                 },
             },
             "after": {
@@ -1107,6 +1174,8 @@ def update_knowledge_entry(
                     "tags": next_metadata.get("tags", []),
                     "source_references": next_metadata.get("source_references", []),
                     "project_id": next_metadata.get("project_id"),
+                    "rule_owner": next_metadata.get("rule_owner"),
+                    "applicability": next_metadata.get("applicability"),
                 },
             },
             "result": "success",

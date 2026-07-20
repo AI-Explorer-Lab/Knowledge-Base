@@ -95,6 +95,8 @@ class SuperAdminService:
             "type": metadata["type"],
             "scope": governance.metadata_scope(metadata),
             "owner_id": metadata.get("owner_id"),
+            "rule_owner": metadata.get("rule_owner"),
+            "applicability": deepcopy(metadata.get("applicability")),
             "layer": metadata["layer"],
             "domain": self._domain_for_path(path, metadata),
             "technical_direction": governance.entry_technical_direction(

@@ -565,8 +565,19 @@ class KnowledgeGovernanceTest(unittest.TestCase):
                 "source_references": metadata["source_references"],
                 "technical_direction": metadata.get("technical_direction"),
                 "owner_id": metadata.get("owner_id"),
+                "rule_owner": "alice",
+                "applicability": {
+                    "project_ids": ["project-a"],
+                    "path_globs": ["backend/**"],
+                    "technologies": ["python"],
+                    "stages": ["generation", "spec_evaluation"],
+                },
             },
-            content="治理脚本仍只使用 Python 标准库。",
+            content=(
+                "治理脚本仍只使用 Python 标准库。\n\n"
+                "## 反例\n\n不要把第三方依赖伪装成标准库。\n\n"
+                "## 验证方法\n\n运行治理测试并检查依赖导入。"
+            ),
             actor="root",
             role="super_admin",
             reason="修订知识正文",
@@ -576,6 +587,11 @@ class KnowledgeGovernanceTest(unittest.TestCase):
         self.assertEqual(written_path, path.resolve())
         self.assertEqual(updated["revision"], 2)
         self.assertEqual(updated["maturity"], "draft")
+        self.assertEqual(updated["rule_owner"], "alice")
+        self.assertEqual(
+            updated["applicability"]["stages"],
+            ["generation", "spec_evaluation"],
+        )
         self.assertFalse(governance.eligible_for_verified(updated))
         self.assertEqual(len(updated["evidence"]["references"]), 1)
         self.assertEqual(len(updated["evidence"]["validations"]), 1)
@@ -603,6 +619,13 @@ class KnowledgeGovernanceTest(unittest.TestCase):
         self.assertEqual(current["maturity"], "verified")
         self.assertEqual(current["evidence"]["references"][-1]["revision"], 2)
         self.assertEqual(current["evidence"]["validations"][-1]["revision"], 2)
+
+        invalid = dict(current)
+        invalid["applicability"] = {"project_ids": "project-a"}
+        self.assertIn(
+            "applicability.project_ids 必须是数组",
+            governance.validate_metadata(invalid, body),
+        )
 
     def test_next_knowledge_id_uses_canonical_layer_type_sequence(self):
         governance.create_knowledge_entry(
