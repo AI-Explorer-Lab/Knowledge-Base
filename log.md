@@ -67,3 +67,16 @@
 - 2026-07-19T10:17:59Z | `zhangsan` | `reference` | `TK-GDL-005` | generation | `orchestrator:20260719-173617-0d8e6e51`
 - 2026-07-19T10:18:00Z | `zhangsan` | `reference` | `TK-GDL-006` | spec_evaluation | `orchestrator:20260719-173617-0d8e6e51`
 - 2026-07-19T10:18:00Z | `orchestrator` | `workflow-complete` | `-` | recorded without automatic lint mutation | `orchestrator:20260719-173617-0d8e6e51:9e4b955c962ef7f65adb82766ea3761e58cc92bfa04d7944ac5b2e985f30f181`
+- 2026-07-19T13:48:20Z | `orchestrator` | `create` | `TK-GDL-010` | tech-wiki/guidelines/TK-GDL-010.md | `orchestrator:20260719-213209-46bf6a8b:6696756e94e2d7d0f67735d3cbdd00ff72c798d0c78d1b1d2fb2919319b26d3e`
+- 2026-07-19T13:48:27Z | `zhangsan` | `reference` | `TK-GDL-008` | generation | `orchestrator:20260719-213209-46bf6a8b`
+- 2026-07-19T13:48:34Z | `zhangsan` | `reference` | `TK-DEC-001` | generation | `orchestrator:20260719-213209-46bf6a8b`
+- 2026-07-19T13:48:37Z | `zhangsan` | `reference` | `TK-GDL-006` | generation | `orchestrator:20260719-213209-46bf6a8b`
+- 2026-07-19T13:48:39Z | `zhangsan` | `reference` | `TK-GDL-004` | generation | `orchestrator:20260719-213209-46bf6a8b`
+- 2026-07-19T13:48:41Z | `zhangsan` | `reference` | `PK-ZS-GDL-001` | generation | `orchestrator:20260719-213209-46bf6a8b`
+- 2026-07-19T13:48:43Z | `zhangsan` | `reference` | `TK-GDL-003` | generation | `orchestrator:20260719-213209-46bf6a8b`
+- 2026-07-19T13:48:44Z | `zhangsan` | `reference` | `TK-GDL-005` | generation | `orchestrator:20260719-213209-46bf6a8b`
+- 2026-07-19T13:48:44Z | `zhangsan` | `reference` | `TK-PTF-001` | generation | `orchestrator:20260719-213209-46bf6a8b`
+- 2026-07-19T13:48:46Z | `zhangsan` | `reference` | `TK-GDL-007` | generation | `orchestrator:20260719-213209-46bf6a8b`
+- 2026-07-19T13:48:52Z | `zhangsan` | `reference` | `TK-GDL-009` | generation | `orchestrator:20260719-213209-46bf6a8b`
+- 2026-07-19T13:48:59Z | `zhangsan` | `reference` | `PK-ZS-GDL-002` | spec_evaluation | `orchestrator:20260719-213209-46bf6a8b`
+- 2026-07-19T13:49:00Z | `orchestrator` | `workflow-complete` | `-` | recorded without automatic lint mutation | `orchestrator:20260719-213209-46bf6a8b:9cc92f104ae25634a09af7ace3b9501a21b8908aaab0303b7e79ef9d78bee280`
