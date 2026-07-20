@@ -5,9 +5,19 @@
   "created_at": "2026-07-19T10:17:55Z",
   "evidence": {
     "contributors": [
-      "orchestrator"
+      "orchestrator",
+      "zhangsan"
     ],
-    "references": [],
+    "references": [
+      {
+        "contributor": "zhangsan",
+        "project_id": "accounting",
+        "referenced_at": "2026-07-19T13:48:52Z",
+        "revision": 1,
+        "used_in": "generation",
+        "workflow_id": "20260719-213209-46bf6a8b"
+      }
+    ],
     "validations": []
   },
   "id": "TK-GDL-009",
