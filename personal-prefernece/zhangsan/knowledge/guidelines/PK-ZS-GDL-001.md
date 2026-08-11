@@ -38,6 +38,14 @@
         "revision": 1,
         "used_in": "generation",
         "workflow_id": "20260719-213209-46bf6a8b"
+      },
+      {
+        "contributor": "zhangsan",
+        "project_id": "accounting",
+        "referenced_at": "2026-07-23T15:30:49Z",
+        "revision": 1,
+        "used_in": "generation",
+        "workflow_id": "20260722-201541-0c813afa"
       }
     ],
     "validations": []

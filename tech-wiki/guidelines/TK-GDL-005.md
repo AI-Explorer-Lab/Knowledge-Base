@@ -5,7 +5,8 @@
   "evidence": {
     "contributors": [
       "orchestrator",
-      "zhangsan"
+      "zhangsan",
+      "demo-reviewer"
     ],
     "references": [
       {
@@ -31,6 +32,14 @@
         "revision": 3,
         "used_in": "generation",
         "workflow_id": "20260719-213209-46bf6a8b"
+      },
+      {
+        "contributor": "demo-reviewer",
+        "project_id": "live-demo",
+        "referenced_at": "2026-07-25T07:32:10Z",
+        "revision": 3,
+        "used_in": "generation",
+        "workflow_id": "audit-e2e-20260725"
       }
     ],
     "validations": []

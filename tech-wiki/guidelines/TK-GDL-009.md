@@ -24,7 +24,8 @@
   "evidence": {
     "contributors": [
       "orchestrator",
-      "zhangsan"
+      "zhangsan",
+      "demo-reviewer"
     ],
     "references": [
       {
@@ -42,6 +43,22 @@
         "revision": 2,
         "used_in": "stage_b_real_rule_validation",
         "workflow_id": "stage-b-real-rule-20260720-tk-gdl-009"
+      },
+      {
+        "contributor": "zhangsan",
+        "project_id": "accounting",
+        "referenced_at": "2026-07-23T15:30:46Z",
+        "revision": 2,
+        "used_in": "generation",
+        "workflow_id": "20260722-201541-0c813afa"
+      },
+      {
+        "contributor": "demo-reviewer",
+        "project_id": "live-demo",
+        "referenced_at": "2026-07-25T07:32:08Z",
+        "revision": 2,
+        "used_in": "generation",
+        "workflow_id": "audit-e2e-20260725"
       }
     ],
     "validations": [

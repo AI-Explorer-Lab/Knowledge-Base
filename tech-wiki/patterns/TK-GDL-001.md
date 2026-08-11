@@ -4,7 +4,8 @@
   "created_at": "2026-07-13T08:28:22Z",
   "evidence": {
     "contributors": [
-      "zhangsan"
+      "zhangsan",
+      "demo-reviewer"
     ],
     "references": [
       {
@@ -22,6 +23,14 @@
         "revision": 1,
         "used_in": "generation",
         "workflow_id": "20260719-173617-0d8e6e51"
+      },
+      {
+        "contributor": "demo-reviewer",
+        "project_id": "live-demo",
+        "referenced_at": "2026-07-25T07:32:09Z",
+        "revision": 1,
+        "used_in": "generation",
+        "workflow_id": "audit-e2e-20260725"
       }
     ],
     "validations": []

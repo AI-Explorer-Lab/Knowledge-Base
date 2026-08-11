@@ -89,3 +89,26 @@
 - 2026-07-20T05:10:25Z | `zhangsan` | `validate` | `TK-GDL-007` | passed；成熟度 draft → verified | `codex:stage-b-real-rule-validation-20260720`
 - 2026-07-20T05:10:25Z | `zhangsan` | `reference` | `TK-GDL-009` | stage_b_real_rule_validation | `codex:stage-b-real-rule-validation-20260720`
 - 2026-07-20T05:10:25Z | `zhangsan` | `validate` | `TK-GDL-009` | passed；成熟度 draft → verified | `codex:stage-b-real-rule-validation-20260720`
+- 2026-07-23T15:30:46Z | `orchestrator` | `create` | `TK-GDL-011` | tech-wiki/guidelines/TK-GDL-011.md | `orchestrator:20260722-201541-0c813afa:36d3161843a8e9c63ef9f8ab0d2e7713ded3db739faea50f73a8fc8c0ea58166`
+- 2026-07-23T15:30:46Z | `zhangsan` | `reference` | `TK-GDL-009` | generation | `orchestrator:20260722-201541-0c813afa`
+- 2026-07-23T15:30:46Z | `zhangsan` | `reference` | `TK-GDL-007` | generation | `orchestrator:20260722-201541-0c813afa`
+- 2026-07-23T15:30:47Z | `zhangsan` | `reference` | `TK-PTF-001` | generation | `orchestrator:20260722-201541-0c813afa`
+- 2026-07-23T15:30:47Z | `zhangsan` | `reference` | `TK-GDL-010` | generation | `orchestrator:20260722-201541-0c813afa`
+- 2026-07-23T15:30:47Z | `zhangsan` | `reference` | `TK-DEC-001` | generation | `orchestrator:20260722-201541-0c813afa`
+- 2026-07-23T15:30:48Z | `zhangsan` | `reference` | `TK-GDL-008` | generation | `orchestrator:20260722-201541-0c813afa`
+- 2026-07-23T15:30:48Z | `zhangsan` | `reference` | `TK-GDL-003` | generation | `orchestrator:20260722-201541-0c813afa`
+- 2026-07-23T15:30:49Z | `zhangsan` | `reference` | `PK-ZS-GDL-003` | generation | `orchestrator:20260722-201541-0c813afa`
+- 2026-07-23T15:30:49Z | `zhangsan` | `reference` | `TK-DEC-003` | generation | `orchestrator:20260722-201541-0c813afa`
+- 2026-07-23T15:30:49Z | `zhangsan` | `reference` | `PK-ZS-GDL-001` | generation | `orchestrator:20260722-201541-0c813afa`
+- 2026-07-23T15:30:50Z | `zhangsan` | `reference` | `PK-ZS-GDL-002` | spec_evaluation | `orchestrator:20260722-201541-0c813afa`
+- 2026-07-23T15:30:50Z | `orchestrator` | `workflow-complete` | `-` | recorded without automatic lint mutation | `orchestrator:20260722-201541-0c813afa:b519929b794567031aedc77646751d1c60153c61fd17654b8cb29375272d74d4`
+- 2026-07-25T07:32:07Z | `orchestrator` | `create` | `TK-GDL-012` | tech-wiki/guidelines/TK-GDL-012.md | `orchestrator:audit-e2e-20260725:610d4ef1e950acd7ab461abe253d6fec8ef8d7e8c1cc0072b12dd4b6320598c2`
+- 2026-07-25T07:32:08Z | `orchestrator` | `create` | `TK-PTF-002` | tech-wiki/pitfalls/TK-PTF-002.md | `orchestrator:audit-e2e-20260725:5fb5c947505d53efd432f3db58de058c40c0e2241ea24586edf76fca20597295`
+- 2026-07-25T07:32:08Z | `demo-reviewer` | `reference` | `TK-GDL-009` | generation | `orchestrator:audit-e2e-20260725`
+- 2026-07-25T07:32:09Z | `demo-reviewer` | `reference` | `TK-GDL-001` | generation | `orchestrator:audit-e2e-20260725`
+- 2026-07-25T07:32:09Z | `demo-reviewer` | `reference` | `TK-PTF-001` | generation | `orchestrator:audit-e2e-20260725`
+- 2026-07-25T07:32:09Z | `demo-reviewer` | `reference` | `TK-GDL-011` | generation | `orchestrator:audit-e2e-20260725`
+- 2026-07-25T07:32:10Z | `demo-reviewer` | `reference` | `TK-GDL-008` | generation | `orchestrator:audit-e2e-20260725`
+- 2026-07-25T07:32:10Z | `demo-reviewer` | `reference` | `TK-DEC-001` | generation | `orchestrator:audit-e2e-20260725`
+- 2026-07-25T07:32:10Z | `demo-reviewer` | `reference` | `TK-GDL-005` | generation | `orchestrator:audit-e2e-20260725`
+- 2026-07-25T07:32:11Z | `orchestrator` | `workflow-complete` | `-` | recorded without automatic lint mutation | `orchestrator:audit-e2e-20260725:6fb9a901d34db5184241613e3b26da1e67abca57fc9de918393cb2980f79f8a9`

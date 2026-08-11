@@ -6,7 +6,8 @@
   "evidence": {
     "contributors": [
       "orchestrator",
-      "zhangsan"
+      "zhangsan",
+      "demo-reviewer"
     ],
     "references": [
       {
@@ -16,6 +17,22 @@
         "revision": 1,
         "used_in": "generation",
         "workflow_id": "20260719-213209-46bf6a8b"
+      },
+      {
+        "contributor": "zhangsan",
+        "project_id": "accounting",
+        "referenced_at": "2026-07-23T15:30:48Z",
+        "revision": 1,
+        "used_in": "generation",
+        "workflow_id": "20260722-201541-0c813afa"
+      },
+      {
+        "contributor": "demo-reviewer",
+        "project_id": "live-demo",
+        "referenced_at": "2026-07-25T07:32:10Z",
+        "revision": 1,
+        "used_in": "generation",
+        "workflow_id": "audit-e2e-20260725"
       }
     ],
     "validations": []
