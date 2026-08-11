@@ -673,3 +673,28 @@ class KnowledgeService:
                 "review": review,
             }
         }
+
+    def get_maturity_history(self, knowledge_id: str, actor: Dict[str, str]) -> Dict[str, Any]:
+        """Return the read-only maturity journey for a human knowledge viewer."""
+
+        if not READABLE_ID_PATTERN.fullmatch(knowledge_id):
+            raise ApiError(404, "knowledge_not_found", "知识不存在")
+        matches = [
+            (path, metadata, body)
+            for path, metadata, body in governance.active_entries(self.repo)
+            if metadata.get("id") == knowledge_id
+        ]
+        if not matches:
+            raise ApiError(404, "knowledge_not_found", "知识不存在")
+        if len(matches) > 1:
+            raise ApiError(409, "duplicate_knowledge_id", "知识 ID 在仓库中不唯一")
+        path, metadata, body = matches[0]
+        try:
+            governance.require_valid_entry(self.repo, path, metadata, body)
+        except governance.GovernanceError as exc:
+            raise ApiError(409, "invalid_knowledge_entry", str(exc)) from exc
+        return {
+            "current_maturity": metadata["maturity"],
+            "current_revision": governance.entry_revision(metadata),
+            "events": governance.maturity_history(self.repo, metadata),
+        }

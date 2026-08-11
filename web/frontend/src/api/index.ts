@@ -7,6 +7,7 @@ import {
   mockGetKnowledgeOptions,
   mockGetKnowledgeTemplate,
   mockGetKnowledgeById,
+  mockGetMaturityHistory,
   mockListKnowledge,
   mockGetMembers,
   mockPreviewKnowledge,
@@ -25,6 +26,7 @@ import type {
   CurrentUserResponse,
   KnowledgeDraft,
   KnowledgeFile,
+  MaturityHistory,
   KnowledgeLayer,
   KnowledgeListResponse,
   KnowledgeOptions,
@@ -91,6 +93,11 @@ export const getKnowledgeById = (knowledgeId: string): Promise<{ knowledge: Know
   isMockApi
     ? mockGetKnowledgeById(knowledgeId)
     : apiRequest(`/knowledge/${encodeURIComponent(knowledgeId)}`)
+
+export const getMaturityHistory = (knowledgeId: string): Promise<MaturityHistory> =>
+  isMockApi
+    ? mockGetMaturityHistory(knowledgeId)
+    : apiRequest(`/knowledge/${encodeURIComponent(knowledgeId)}/maturity-history`)
 
 export const listKnowledge = (
   layer?: KnowledgeLayer,

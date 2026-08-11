@@ -148,6 +148,46 @@ class KnowledgeFileResponse(ResponseModel):
     knowledge: KnowledgeFileItem
 
 
+class MaturityEvidenceResponse(ResponseModel):
+    kind: Literal["reference", "validation"]
+    occurred_at: str
+    revision: int
+    contributor: Optional[str] = None
+    project_id: Optional[str] = None
+    workflow_id: Optional[str] = None
+    used_in: Optional[str] = None
+    result: Optional[Literal["passed", "failed"]] = None
+    source: Optional[str] = None
+
+
+class MaturityHistoryEventResponse(ResponseModel):
+    occurred_at: str
+    event_type: Literal[
+        "created",
+        "revision_reset",
+        "referenced",
+        "validated",
+        "maturity_changed",
+        "decayed",
+        "restored",
+    ]
+    from_maturity: Optional[KnowledgeMaturity] = None
+    to_maturity: Optional[KnowledgeMaturity] = None
+    revision: Optional[int] = None
+    actor: Optional[str] = None
+    summary: str
+    reason: Optional[str] = None
+    changed_fields: List[str]
+    evidence: List[MaturityEvidenceResponse]
+    data_source: Literal["metadata", "audit", "legacy_audit"]
+
+
+class MaturityHistoryResponse(ResponseModel):
+    current_maturity: KnowledgeMaturity
+    current_revision: int
+    events: List[MaturityHistoryEventResponse]
+
+
 class SuperAdminKnowledgeListResponse(ResponseModel):
     items: List[Dict[str, Any]]
     counts: Dict[str, int]
