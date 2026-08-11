@@ -2803,6 +2803,106 @@ body.editor-fullscreen-open {
   background: #fff8f7;
 }
 
+.maturity-history-section {
+  margin: 0 25px;
+  border-bottom: 1px solid #e8edf5;
+}
+
+.maturity-history-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  border: 0;
+  background: transparent;
+  color: #29466f;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 14px 0;
+}
+
+.maturity-history-toggle > span,
+.maturity-history-current {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.maturity-history-toggle svg {
+  transition: transform .16s ease;
+}
+
+.maturity-history-toggle svg.rotated { transform: rotate(180deg); }
+
+.maturity-history-content { padding: 0 0 15px; }
+
+.maturity-history-current {
+  margin: 0 0 12px;
+  color: #315c9b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.maturity-history-loading,
+.maturity-history-error {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #61708a;
+  font-size: 13px;
+  padding-bottom: 12px;
+}
+
+.maturity-history-error { color: #b54742; }
+
+.maturity-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 16px;
+}
+
+.maturity-timeline > li {
+  position: relative;
+  border-left: 1px solid #d9e3f2;
+  color: #5d6e88;
+  font-size: 13px;
+  padding: 0 0 17px 17px;
+}
+
+.maturity-timeline > li:last-child { padding-bottom: 0; }
+
+.maturity-timeline-dot {
+  position: absolute;
+  top: 4px;
+  left: -5px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #92a4bd;
+  box-shadow: 0 0 0 1px #92a4bd;
+}
+
+.maturity-timeline-dot.event-validated,
+.maturity-timeline-dot.event-maturity_changed { background: #0d8b69; box-shadow: 0 0 0 1px #0d8b69; }
+.maturity-timeline-dot.event-decayed,
+.maturity-timeline-dot.event-revision_reset { background: #b7791f; box-shadow: 0 0 0 1px #b7791f; }
+
+.maturity-timeline strong { color: #233d62; }
+.maturity-timeline p { margin: 4px 0; }
+.maturity-timeline small { color: #7c8ca5; }
+.maturity-event-reason,
+.maturity-event-fields { color: #6a7890; }
+
+.maturity-evidence-list {
+  margin: 8px 0 0;
+  padding-left: 16px;
+}
+
+.maturity-evidence-list li { margin: 4px 0; }
+.maturity-evidence-list span { color: #315c9b; font-weight: 650; }
+.maturity-evidence-list p { color: #526886; }
+
 .file-tag-section {
   display: flex;
   align-items: flex-start;

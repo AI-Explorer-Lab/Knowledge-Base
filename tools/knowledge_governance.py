@@ -810,6 +810,234 @@ def append_log(
     atomic_write(path, current + line)
 
 
+def _maturity_transition(detail: str) -> Tuple[Optional[str], Optional[str]]:
+    """Extract a governed maturity transition from a legacy audit detail."""
+
+    match = re.search(r"\b(draft|verified|proven)\s*→\s*(draft|verified|proven)\b", detail)
+    return match.groups() if match else (None, None)
+
+
+def _knowledge_audit_records(repo: Path, knowledge_id: str) -> List[Dict[str, str]]:
+    """Read only the append-only audit rows belonging to one knowledge ID."""
+
+    path = repo / "log.md"
+    if not path.exists():
+        return []
+    records: List[Dict[str, str]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.startswith("- "):
+            continue
+        parts = line[2:].split(" | ", 5)
+        if len(parts) != 6:
+            continue
+        timestamp, actor, action, target_id, detail, session = parts
+        if target_id.strip("`") != knowledge_id:
+            continue
+        try:
+            parse_time(timestamp)
+        except ValueError:
+            continue
+        records.append(
+            {
+                "timestamp": timestamp,
+                "actor": actor.strip("`"),
+                "action": action.strip("`"),
+                "detail": detail,
+                "session": session.strip("`"),
+            }
+        )
+    return records
+
+
+def maturity_history(repo: Path, metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Normalize read-only maturity evidence and audit events for one knowledge entry.
+
+    Metadata is authoritative for revision-scoped references and validations.
+    ``log.md`` supplies the append-only state transitions that are not retained
+    in the current Markdown metadata.  Unknown audit actions are deliberately
+    omitted instead of being guessed into maturity changes.
+    """
+
+    knowledge_id = str(metadata["id"])
+    events: List[Dict[str, Any]] = []
+    validation_times_in_audit = set()
+
+    for record in _knowledge_audit_records(repo, knowledge_id):
+        action = record["action"]
+        detail = record["detail"]
+        event: Optional[Dict[str, Any]] = None
+
+        if action == "create":
+            event = {
+                "occurred_at": record["timestamp"],
+                "event_type": "created",
+                "from_maturity": None,
+                "to_maturity": "draft",
+                "revision": 1,
+                "actor": record["actor"],
+                "summary": "创建知识，初始成熟度为 Draft",
+                "reason": None,
+                "changed_fields": [],
+                "evidence": [],
+                "data_source": "legacy_audit",
+            }
+        elif action in {"admin-knowledge-update", "admin-knowledge-reclassify"}:
+            try:
+                payload = json.loads(detail)
+                before = payload.get("before", {})
+                after = payload.get("after", {})
+                before_maturity = before.get("maturity")
+                after_maturity = after.get("maturity")
+                revision = after.get("revision")
+                if before_maturity in MATURITIES and after_maturity in MATURITIES:
+                    event = {
+                        "occurred_at": record["timestamp"],
+                        "event_type": "revision_reset",
+                        "from_maturity": before_maturity,
+                        "to_maturity": after_maturity,
+                        "revision": revision if isinstance(revision, int) else None,
+                        "actor": record["actor"],
+                        "summary": "知识内容或治理字段变更，生成新 Revision 并重置成熟度",
+                        "reason": payload.get("reason") if isinstance(payload.get("reason"), str) else None,
+                        "changed_fields": [
+                            value
+                            for value in payload.get("changed_fields", [])
+                            if isinstance(value, str)
+                        ],
+                        "evidence": [],
+                        "data_source": "audit",
+                    }
+            except json.JSONDecodeError:
+                pass
+        elif action in {"validate", "approve-proven", "auto-decay", "restore"}:
+            before_maturity, after_maturity = _maturity_transition(detail)
+            if before_maturity and after_maturity:
+                event_type = {
+                    "validate": "validated",
+                    "approve-proven": "maturity_changed",
+                    "auto-decay": "decayed",
+                    "restore": "restored",
+                }[action]
+                event = {
+                    "occurred_at": record["timestamp"],
+                    "event_type": event_type,
+                    "from_maturity": before_maturity,
+                    "to_maturity": after_maturity,
+                    "revision": None,
+                    "actor": record["actor"],
+                    "summary": {
+                        "validate": "验证记录已写入，成熟度按当前证据重新计算",
+                        "approve-proven": "维护者已审批成熟度提升",
+                        "auto-decay": "长期未被有效引用，成熟度自动衰减",
+                        "restore": "知识恢复后回到 Draft",
+                    }[action],
+                    "reason": None,
+                    "changed_fields": [],
+                    "evidence": [],
+                    "data_source": "legacy_audit",
+                }
+                if action == "validate":
+                    validation_times_in_audit.add(record["timestamp"])
+
+        if event:
+            events.append(event)
+
+    evidence = metadata.get("evidence", {})
+    references = evidence.get("references", []) if isinstance(evidence, dict) else []
+    validations = evidence.get("validations", []) if isinstance(evidence, dict) else []
+
+    for reference in references:
+        if not isinstance(reference, dict):
+            continue
+        occurred_at = reference.get("referenced_at")
+        if not isinstance(occurred_at, str):
+            continue
+        events.append(
+            {
+                "occurred_at": occurred_at,
+                "event_type": "referenced",
+                "from_maturity": None,
+                "to_maturity": None,
+                "revision": record_revision(reference),
+                "actor": reference.get("contributor") if isinstance(reference.get("contributor"), str) else None,
+                "summary": "知识被真实工作流引用",
+                "reason": None,
+                "changed_fields": [],
+                "evidence": [
+                    {
+                        "kind": "reference",
+                        "occurred_at": occurred_at,
+                        "revision": record_revision(reference),
+                        "contributor": reference.get("contributor"),
+                        "project_id": reference.get("project_id"),
+                        "workflow_id": reference.get("workflow_id"),
+                        "used_in": reference.get("used_in"),
+                        "result": None,
+                        "source": None,
+                    }
+                ],
+                "data_source": "metadata",
+            }
+        )
+
+    for validation in validations:
+        if not isinstance(validation, dict):
+            continue
+        occurred_at = validation.get("validated_at")
+        if not isinstance(occurred_at, str):
+            continue
+        evidence_item = {
+            "kind": "validation",
+            "occurred_at": occurred_at,
+            "revision": record_revision(validation),
+            "contributor": validation.get("contributor"),
+            "project_id": validation.get("project_id"),
+            "workflow_id": validation.get("workflow_id"),
+            "used_in": None,
+            "result": validation.get("result"),
+            "source": validation.get("source"),
+        }
+        matching_event = next(
+            (
+                item
+                for item in events
+                if item["event_type"] == "validated" and item["occurred_at"] == occurred_at
+            ),
+            None,
+        )
+        if matching_event:
+            matching_event["revision"] = record_revision(validation)
+            matching_event["evidence"].append(evidence_item)
+            continue
+        events.append(
+            {
+                "occurred_at": occurred_at,
+                "event_type": "validated",
+                "from_maturity": None,
+                "to_maturity": None,
+                "revision": record_revision(validation),
+                "actor": validation.get("contributor") if isinstance(validation.get("contributor"), str) else None,
+                "summary": "验证证据已写入",
+                "reason": None,
+                "changed_fields": [],
+                "evidence": [evidence_item],
+                "data_source": "metadata" if occurred_at not in validation_times_in_audit else "audit",
+            }
+        )
+
+    priority = {
+        "created": 0,
+        "revision_reset": 1,
+        "referenced": 2,
+        "validated": 3,
+        "maturity_changed": 4,
+        "decayed": 5,
+        "restored": 6,
+    }
+    events.sort(key=lambda item: (item["occurred_at"], priority[item["event_type"]]))
+    return events
+
+
 def build_knowledge_metadata(
     *,
     knowledge_id: str,

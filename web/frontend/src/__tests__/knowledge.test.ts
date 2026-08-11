@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mockGetKnowledgeTemplate } from '@/api/mock'
+import { mockGetKnowledgeTemplate, mockGetMaturityHistory } from '@/api/mock'
 import { renderMarkdown } from '@/utils/markdown'
 import {
   buildKnowledgePayload,
@@ -153,6 +153,27 @@ describe('knowledge review display', () => {
   it('shows text only when a review is overdue', () => {
     expect(formatReviewStatus(false)).toBe('')
     expect(formatReviewStatus(true)).toBe('已到期')
+  })
+})
+
+describe('maturity history display data', () => {
+  it('returns revision-scoped events for the detail timeline', async () => {
+    const history = await mockGetMaturityHistory('TK-GDL-001')
+
+    expect(history).toMatchObject({
+      current_maturity: 'verified',
+      current_revision: 1,
+    })
+    expect(history.events.map((event) => event.event_type)).toEqual([
+      'created',
+      'referenced',
+      'validated',
+    ])
+    expect(history.events[2].evidence[0]).toMatchObject({
+      kind: 'validation',
+      result: 'passed',
+      revision: 1,
+    })
   })
 })
 

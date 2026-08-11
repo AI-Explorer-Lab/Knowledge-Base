@@ -6,6 +6,7 @@ import type {
   KnowledgeFile,
   KnowledgeLayer,
   KnowledgeMaturity,
+  MaturityHistory,
   KnowledgeListResponse,
   KnowledgeOptions,
   KnowledgeReview,
@@ -522,6 +523,82 @@ export async function mockGetKnowledgeById(knowledgeId: string): Promise<{ knowl
   const knowledge = createdFiles.get(knowledgeId)
   if (!knowledge) throw new ApiError('知识文件不存在或当前成员无权查看', { status: 404, code: 'NOT_FOUND' })
   return { knowledge: structuredClone(knowledge) }
+}
+
+export async function mockGetMaturityHistory(knowledgeId: string): Promise<MaturityHistory> {
+  await wait(100)
+  const knowledge = createdFiles.get(knowledgeId)
+  if (!knowledge) throw new ApiError('知识文件不存在或当前成员无权查看', { status: 404, code: 'NOT_FOUND' })
+  const validationAt = '2026-07-20T05:10:25Z'
+  const events: MaturityHistory['events'] = [
+    {
+      occurred_at: knowledge.created_at,
+      event_type: 'created',
+      from_maturity: null,
+      to_maturity: 'draft',
+      revision: 1,
+      actor: 'zhangsan',
+      summary: '创建知识，初始成熟度为 Draft',
+      reason: null,
+      changed_fields: [],
+      evidence: [],
+      data_source: 'legacy_audit',
+    },
+  ]
+  if (knowledge.maturity !== 'draft') {
+    events.push(
+      {
+        occurred_at: '2026-07-19T10:17:57Z',
+        event_type: 'referenced',
+        from_maturity: null,
+        to_maturity: null,
+        revision: 1,
+        actor: 'zhangsan',
+        summary: '知识被真实工作流引用',
+        reason: null,
+        changed_fields: [],
+        evidence: [{
+          kind: 'reference', occurred_at: '2026-07-19T10:17:57Z', revision: 1,
+          contributor: 'zhangsan', project_id: 'accounting', workflow_id: 'demo-workflow',
+          used_in: 'generation', result: null, source: null,
+        }],
+        data_source: 'metadata',
+      },
+      {
+        occurred_at: validationAt,
+        event_type: 'validated',
+        from_maturity: 'draft',
+        to_maturity: knowledge.maturity === 'proven' ? 'verified' : knowledge.maturity,
+        revision: 1,
+        actor: 'zhangsan',
+        summary: '验证记录已写入，成熟度按当前证据重新计算',
+        reason: null,
+        changed_fields: [],
+        evidence: [{
+          kind: 'validation', occurred_at: validationAt, revision: 1,
+          contributor: 'zhangsan', project_id: 'accounting', workflow_id: 'demo-validation',
+          used_in: null, result: 'passed', source: '示例验证记录',
+        }],
+        data_source: 'audit',
+      },
+    )
+  }
+  if (knowledge.maturity === 'proven') {
+    events.push({
+      occurred_at: '2026-07-21T06:10:00Z',
+      event_type: 'maturity_changed',
+      from_maturity: 'verified',
+      to_maturity: 'proven',
+      revision: 1,
+      actor: 'zhangsan',
+      summary: '维护者已审批成熟度提升',
+      reason: null,
+      changed_fields: [],
+      evidence: [],
+      data_source: 'legacy_audit',
+    })
+  }
+  return { current_maturity: knowledge.maturity, current_revision: 1, events }
 }
 
 export async function mockListKnowledge(

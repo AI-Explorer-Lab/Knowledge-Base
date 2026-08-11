@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import sqlite3
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -395,6 +396,154 @@ def test_personal_preview_create_idempotent_retry_and_by_id_view(repo: Path):
     assert reader.get("/api/knowledge", params={"layer": "unknown"}).status_code == 422
     assert path.read_bytes() == content_before_view
     assert governance.read_entry(path)[0]["evidence"] == evidence_before_view
+
+
+def test_maturity_history_combines_revision_scoped_evidence_and_audit_events(repo: Path):
+    contributor = client_for(repo, "lisi")
+    preview = contributor.post("/api/knowledge/preview", json=team_payload())
+    assert preview.status_code == 200, preview.text
+    created = contributor.post(
+        "/api/knowledge/manual",
+        json={**team_payload(), "preview_token": preview.json()["preview_token"]},
+    )
+    assert created.status_code == 201, created.text
+    knowledge = created.json()["knowledge"]
+    path = repo / knowledge["relative_path"]
+    metadata, body = governance.read_entry(path)
+    metadata["revision"] = 2
+    metadata["updated_at"] = "2026-07-20T05:09:18Z"
+    metadata["updated_by"] = "zhangsan"
+    metadata["maturity"] = "verified"
+    metadata["evidence"]["references"].append(
+        {
+            "contributor": "zhangsan",
+            "project_id": "accounting",
+            "referenced_at": "2026-07-20T05:10:25Z",
+            "revision": 2,
+            "used_in": "generation",
+            "workflow_id": "history-workflow",
+        }
+    )
+    metadata["evidence"]["validations"].append(
+        {
+            "contributor": "zhangsan",
+            "project_id": "accounting",
+            "result": "passed",
+            "revision": 2,
+            "source": "backend transaction tests passed",
+            "validated_at": "2026-07-20T05:10:25Z",
+            "workflow_id": "history-workflow",
+        }
+    )
+    governance.write_entry(path, metadata, body)
+    update_detail = json.dumps(
+        {
+            "before": {"maturity": "draft", "revision": 1},
+            "after": {"maturity": "draft", "revision": 2},
+            "changed_fields": ["content", "rule_owner"],
+            "reason": "补齐验证方法",
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    (repo / "log.md").write_text(
+        "# 知识贡献日志\n"
+        f"- 2026-07-19T03:27:47Z | `orchestrator` | `create` | `{knowledge['id']}` | {knowledge['relative_path']} | `workflow:create`\n"
+        f"- 2026-07-20T05:09:18Z | `zhangsan` | `admin-knowledge-update` | `{knowledge['id']}` | {update_detail} | `web:super-admin`\n"
+        f"- 2026-07-20T05:10:25Z | `zhangsan` | `validate` | `{knowledge['id']}` | passed；成熟度 draft → verified | `history-workflow`\n",
+        encoding="utf-8",
+    )
+
+    content_before = path.read_bytes()
+    log_before = (repo / "log.md").read_bytes()
+    response = client_for(repo, "wangwu").get(
+        f"/api/knowledge/{knowledge['id']}/maturity-history"
+    )
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "current_maturity": "verified",
+        "current_revision": 2,
+        "events": [
+            {
+                "occurred_at": "2026-07-19T03:27:47Z",
+                "event_type": "created",
+                "from_maturity": None,
+                "to_maturity": "draft",
+                "revision": 1,
+                "actor": "orchestrator",
+                "summary": "创建知识，初始成熟度为 Draft",
+                "reason": None,
+                "changed_fields": [],
+                "evidence": [],
+                "data_source": "legacy_audit",
+            },
+            {
+                "occurred_at": "2026-07-20T05:09:18Z",
+                "event_type": "revision_reset",
+                "from_maturity": "draft",
+                "to_maturity": "draft",
+                "revision": 2,
+                "actor": "zhangsan",
+                "summary": "知识内容或治理字段变更，生成新 Revision 并重置成熟度",
+                "reason": "补齐验证方法",
+                "changed_fields": ["content", "rule_owner"],
+                "evidence": [],
+                "data_source": "audit",
+            },
+            {
+                "occurred_at": "2026-07-20T05:10:25Z",
+                "event_type": "referenced",
+                "from_maturity": None,
+                "to_maturity": None,
+                "revision": 2,
+                "actor": "zhangsan",
+                "summary": "知识被真实工作流引用",
+                "reason": None,
+                "changed_fields": [],
+                "evidence": [
+                    {
+                        "kind": "reference",
+                        "occurred_at": "2026-07-20T05:10:25Z",
+                        "revision": 2,
+                        "contributor": "zhangsan",
+                        "project_id": "accounting",
+                        "workflow_id": "history-workflow",
+                        "used_in": "generation",
+                        "result": None,
+                        "source": None,
+                    }
+                ],
+                "data_source": "metadata",
+            },
+            {
+                "occurred_at": "2026-07-20T05:10:25Z",
+                "event_type": "validated",
+                "from_maturity": "draft",
+                "to_maturity": "verified",
+                "revision": 2,
+                "actor": "zhangsan",
+                "summary": "验证记录已写入，成熟度按当前证据重新计算",
+                "reason": None,
+                "changed_fields": [],
+                "evidence": [
+                    {
+                        "kind": "validation",
+                        "occurred_at": "2026-07-20T05:10:25Z",
+                        "revision": 2,
+                        "contributor": "zhangsan",
+                        "project_id": "accounting",
+                        "workflow_id": "history-workflow",
+                        "used_in": None,
+                        "result": "passed",
+                        "source": "backend transaction tests passed",
+                    }
+                ],
+                "data_source": "legacy_audit",
+            },
+        ],
+    }
+    assert path.read_bytes() == content_before
+    assert (repo / "log.md").read_bytes() == log_before
 
 
 def test_actor_form_and_storage_fields_cannot_be_forged(repo: Path):

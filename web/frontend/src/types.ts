@@ -141,6 +141,47 @@ export interface KnowledgeFile extends KnowledgeFileContent {
   review: KnowledgeReview
 }
 
+export type MaturityHistoryEventType =
+  | 'created'
+  | 'revision_reset'
+  | 'referenced'
+  | 'validated'
+  | 'maturity_changed'
+  | 'decayed'
+  | 'restored'
+
+export interface MaturityEvidence {
+  kind: 'reference' | 'validation'
+  occurred_at: string
+  revision: number
+  contributor: string | null
+  project_id: string | null
+  workflow_id: string | null
+  used_in: string | null
+  result: 'passed' | 'failed' | null
+  source: string | null
+}
+
+export interface MaturityHistoryEvent {
+  occurred_at: string
+  event_type: MaturityHistoryEventType
+  from_maturity: KnowledgeMaturity | null
+  to_maturity: KnowledgeMaturity | null
+  revision: number | null
+  actor: string | null
+  summary: string
+  reason: string | null
+  changed_fields: string[]
+  evidence: MaturityEvidence[]
+  data_source: 'metadata' | 'audit' | 'legacy_audit'
+}
+
+export interface MaturityHistory {
+  current_maturity: KnowledgeMaturity
+  current_revision: number
+  events: MaturityHistoryEvent[]
+}
+
 export interface KnowledgeListItem extends Omit<CreatedKnowledge, 'source_references'> {
   excerpt: string
   review: KnowledgeReview

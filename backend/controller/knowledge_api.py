@@ -10,6 +10,7 @@ from backend.domain.res import (
     CreateKnowledgeResponse,
     KnowledgeFileResponse,
     KnowledgeListResponse,
+    MaturityHistoryResponse,
     KnowledgeOptionsResponse,
     KnowledgeTemplateResponse,
     PreviewResponse,
@@ -93,3 +94,12 @@ def get_knowledge(
     # Human view-only endpoint for the completion modal. It is not an Agent
     # consumption/reference call and therefore must remain evidence-neutral.
     return service.get_by_id(knowledge_id, member)
+
+
+@router.get("/{knowledge_id}/maturity-history", response_model=MaturityHistoryResponse)
+def get_maturity_history(
+    knowledge_id: str,
+    member: Dict[str, str] = Depends(current_member),
+    service: KnowledgeService = Depends(knowledge_service),
+) -> Dict:
+    return service.get_maturity_history(knowledge_id, member)
