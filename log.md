@@ -112,3 +112,21 @@
 - 2026-07-25T07:32:10Z | `demo-reviewer` | `reference` | `TK-DEC-001` | generation | `orchestrator:audit-e2e-20260725`
 - 2026-07-25T07:32:10Z | `demo-reviewer` | `reference` | `TK-GDL-005` | generation | `orchestrator:audit-e2e-20260725`
 - 2026-07-25T07:32:11Z | `orchestrator` | `workflow-complete` | `-` | recorded without automatic lint mutation | `orchestrator:audit-e2e-20260725:6fb9a901d34db5184241613e3b26da1e67abca57fc9de918393cb2980f79f8a9`
+- 2026-08-13T02:40:40Z | `zhangsan` | `reference` | `TK-PTF-001` | generation | `orchestrator:20260813-094134-9cfef825`
+- 2026-08-13T02:40:40Z | `zhangsan` | `reference` | `TK-PTF-002` | generation | `orchestrator:20260813-094134-9cfef825`
+- 2026-08-13T02:40:41Z | `zhangsan` | `reference` | `TK-AP-001` | generation | `orchestrator:20260813-094134-9cfef825`
+- 2026-08-13T02:40:41Z | `zhangsan` | `reference` | `TK-DEC-001` | generation | `orchestrator:20260813-094134-9cfef825`
+- 2026-08-13T02:40:41Z | `zhangsan` | `reference` | `TK-GDL-003` | generation | `orchestrator:20260813-094134-9cfef825`
+- 2026-08-13T02:40:42Z | `zhangsan` | `reference` | `TK-GDL-005` | generation | `orchestrator:20260813-094134-9cfef825`
+- 2026-08-13T02:40:42Z | `zhangsan` | `reference` | `TK-GDL-012` | generation | `orchestrator:20260813-094134-9cfef825`
+- 2026-08-13T02:40:42Z | `orchestrator` | `workflow-complete` | `-` | recorded without automatic lint mutation | `orchestrator:20260813-094134-9cfef825:7b7b315ae9a8f2e6de8acf5f044fd3cc56cbb124c9f6ca92e9b3a0f54bcea2e6`
+- 2026-08-13T04:25:27Z | `orchestrator` | `create` | `TK-PTF-003` | tech-wiki/pitfalls/TK-PTF-003.md | `orchestrator:20260813-121910-760917a7:56c0efcbc162eadcc2e3dfee7454e72fb6d4f8dfa93add8bdf7235e5423e3ee5`
+- 2026-08-13T04:25:27Z | `orchestrator` | `create` | `TK-GDL-013` | tech-wiki/guidelines/TK-GDL-013.md | `orchestrator:20260813-121910-760917a7:1403620afc8370fc40415db6973c0a9e901fabecd3d67c9ea9838f779f44d374`
+- 2026-08-13T04:25:27Z | `local-user` | `reference` | `TK-PTF-001` | generation | `orchestrator:20260813-121910-760917a7`
+- 2026-08-13T04:25:28Z | `local-user` | `reference` | `TK-PTF-002` | generation | `orchestrator:20260813-121910-760917a7`
+- 2026-08-13T04:25:28Z | `local-user` | `reference` | `TK-AP-001` | generation | `orchestrator:20260813-121910-760917a7`
+- 2026-08-13T04:25:28Z | `local-user` | `reference` | `TK-DEC-001` | generation | `orchestrator:20260813-121910-760917a7`
+- 2026-08-13T04:25:29Z | `local-user` | `reference` | `TK-GDL-003` | generation | `orchestrator:20260813-121910-760917a7`
+- 2026-08-13T04:25:29Z | `local-user` | `reference` | `TK-GDL-005` | generation | `orchestrator:20260813-121910-760917a7`
+- 2026-08-13T04:25:29Z | `local-user` | `reference` | `TK-GDL-012` | generation | `orchestrator:20260813-121910-760917a7`
+- 2026-08-13T04:25:30Z | `orchestrator` | `workflow-complete` | `-` | recorded without automatic lint mutation | `orchestrator:20260813-121910-760917a7:d6c476e9e6edff463b6243af99629444f70c8cff2a879b67a77dd3fc935a7482`

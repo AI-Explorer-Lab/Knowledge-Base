@@ -5,7 +5,8 @@
   "evidence": {
     "contributors": [
       "zhangsan",
-      "demo-reviewer"
+      "demo-reviewer",
+      "local-user"
     ],
     "references": [
       {
@@ -55,6 +56,22 @@
         "revision": 1,
         "used_in": "generation",
         "workflow_id": "audit-e2e-20260725"
+      },
+      {
+        "contributor": "zhangsan",
+        "project_id": "accounting",
+        "referenced_at": "2026-08-13T02:40:41Z",
+        "revision": 1,
+        "used_in": "generation",
+        "workflow_id": "20260813-094134-9cfef825"
+      },
+      {
+        "contributor": "local-user",
+        "project_id": "read-notes",
+        "referenced_at": "2026-08-13T04:25:28Z",
+        "revision": 1,
+        "used_in": "generation",
+        "workflow_id": "20260813-121910-760917a7"
       }
     ],
     "validations": []

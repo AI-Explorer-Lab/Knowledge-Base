@@ -48,7 +48,7 @@ wait_for_url() {
     if ! kill -0 "${pid}" 2>/dev/null; then
       return 1
     fi
-    if curl --silent --fail --output /dev/null "${url}"; then
+    if curl --noproxy '*' --silent --fail --output /dev/null "${url}"; then
       return 0
     fi
     sleep 0.25

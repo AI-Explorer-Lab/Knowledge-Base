@@ -30,7 +30,9 @@
 | `TK-GDL-010` | 将破坏性操作的确认设计为既有流程的前置守卫 | `guideline` | `draft` | `team` | `-` | destructive-action, confirmation, early-return, side-effects, component-testing | `tech-wiki/guidelines/TK-GDL-010.md` |
 | `TK-GDL-011` | 按有效输入语义派生筛选条件计数 | `guideline` | `draft` | `team` | `-` | frontend, vue, filter-count, input-normalization, derived-state, component-testing | `tech-wiki/guidelines/TK-GDL-011.md` |
 | `TK-GDL-012` | 使用整数运算格式化最小货币单位 | `guideline` | `draft` | `team` | `-` | money-formatting, integer-arithmetic, fixed-width, input-validation, boundary-testing | `tech-wiki/guidelines/TK-GDL-012.md` |
+| `TK-GDL-013` | 为命令行持久化功能同时验证写入、读取和空数据状态 | `guideline` | `draft` | `team` | `-` | cli, persistence, state-management, boundary-testing | `tech-wiki/guidelines/TK-GDL-013.md` |
 | `TK-GDL-001` | 知识治理脚本只使用 Python 标准库 | `guideline` | `draft` | `team` | `-` | python, governance, dependency | `tech-wiki/patterns/TK-GDL-001.md` |
 | `TK-PTF-001` | 新增测试代码不等于测试与构建已经通过 | `pitfall` | `draft` | `team` | `-` | test-evidence, build-verification, acceptance, ci | `tech-wiki/pitfalls/TK-PTF-001.md` |
 | `TK-PTF-002` | 避免 Shell 插值破坏含美元符号的测试数据 | `pitfall` | `draft` | `team` | `-` | shell-quoting, variable-expansion, data-integrity, test-data, ci | `tech-wiki/pitfalls/TK-PTF-002.md` |
+| `TK-PTF-003` | 新增测试代码不等于测试与构建已经通过 | `pitfall` | `draft` | `team` | `-` | test-evidence, acceptance, verification, ci | `tech-wiki/pitfalls/TK-PTF-003.md` |
 <!-- knowledge-index:end -->
