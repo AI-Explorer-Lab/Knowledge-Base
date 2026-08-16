@@ -5,7 +5,8 @@
   "evidence": {
     "contributors": [
       "zhangsan",
-      "demo-reviewer"
+      "demo-reviewer",
+      "local-user"
     ],
     "references": [
       {
@@ -55,6 +56,30 @@
         "revision": 1,
         "used_in": "generation",
         "workflow_id": "audit-e2e-20260725"
+      },
+      {
+        "contributor": "zhangsan",
+        "project_id": "accounting",
+        "referenced_at": "2026-08-13T02:40:41Z",
+        "revision": 1,
+        "used_in": "generation",
+        "workflow_id": "20260813-094134-9cfef825"
+      },
+      {
+        "contributor": "local-user",
+        "project_id": "read-notes",
+        "referenced_at": "2026-08-13T04:25:28Z",
+        "revision": 1,
+        "used_in": "generation",
+        "workflow_id": "20260813-121910-760917a7"
+      },
+      {
+        "contributor": "zhangsan",
+        "project_id": "accounting",
+        "referenced_at": "2026-08-16T05:10:59Z",
+        "revision": 1,
+        "used_in": "generation",
+        "workflow_id": "accounting-20260816-105748-2caa7bfa"
       }
     ],
     "validations": []
@@ -144,7 +169,7 @@ backend/
 │   └── exception_handler.py      # 注册业务异常及未知异常处理器
 │
 ├── mapper/
-│   └── {database}_{entity}.py
+│   └── __init__.py                 # 初始化阶段仅保留持久化边界
 │       ├── create()              # 新增
 │       ├── get()                 # 查询单条
 │       ├── list()                # 条件查询
@@ -152,7 +177,7 @@ backend/
 │       └── delete()              # 删除或软删除
 │
 ├── utils/
-│   └── {capability}.py           # 无业务状态、可独立复用的纯工具能力
+│   └── __init__.py                 # 初始化阶段仅保留工具能力边界
 │
 ├── database/
 │   ├── session.py
@@ -172,3 +197,5 @@ backend/
 ├── .gitignore
 └── requirements.txt             # 仅在团队部署链强制要求时使用
 ```
+
+初始化规则：`{business}` 必须替换为项目业务名。例如项目名为 `accounting` 时，创建 `accounting_api.py` 和 `accounting_service.py`。数据库设计和其他工具能力与后端骨架初始化相互独立；初始化阶段只创建 `mapper/__init__.py` 和 `utils/__init__.py`，不创建数据库实体 mapper 或能力占位文件。后续任务明确设计数据库实体或其他能力后，再向对应目录新增具体文件。

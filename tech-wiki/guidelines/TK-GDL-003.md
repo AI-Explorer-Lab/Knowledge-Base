@@ -4,7 +4,8 @@
   "created_at": "2026-07-15T14:31:23Z",
   "evidence": {
     "contributors": [
-      "zhangsan"
+      "zhangsan",
+      "local-user"
     ],
     "references": [
       {
@@ -38,6 +39,30 @@
         "revision": 2,
         "used_in": "generation",
         "workflow_id": "20260722-201541-0c813afa"
+      },
+      {
+        "contributor": "zhangsan",
+        "project_id": "accounting",
+        "referenced_at": "2026-08-13T02:40:41Z",
+        "revision": 2,
+        "used_in": "generation",
+        "workflow_id": "20260813-094134-9cfef825"
+      },
+      {
+        "contributor": "local-user",
+        "project_id": "read-notes",
+        "referenced_at": "2026-08-13T04:25:29Z",
+        "revision": 2,
+        "used_in": "generation",
+        "workflow_id": "20260813-121910-760917a7"
+      },
+      {
+        "contributor": "zhangsan",
+        "project_id": "account",
+        "referenced_at": "2026-08-15T10:42:56Z",
+        "revision": 2,
+        "used_in": "architecture_evaluation",
+        "workflow_id": "20260815-183253-8b028e7e"
       }
     ],
     "validations": []
