@@ -57,6 +57,14 @@
         "revision": 2,
         "used_in": "generation",
         "workflow_id": "20260722-201541-0c813afa"
+      },
+      {
+        "contributor": "zhangsan",
+        "project_id": "account",
+        "referenced_at": "2026-08-15T10:42:56Z",
+        "revision": 2,
+        "used_in": "generation",
+        "workflow_id": "20260815-183253-8b028e7e"
       }
     ],
     "validations": [

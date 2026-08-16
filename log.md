@@ -130,3 +130,30 @@
 - 2026-08-13T04:25:29Z | `local-user` | `reference` | `TK-GDL-005` | generation | `orchestrator:20260813-121910-760917a7`
 - 2026-08-13T04:25:29Z | `local-user` | `reference` | `TK-GDL-012` | generation | `orchestrator:20260813-121910-760917a7`
 - 2026-08-13T04:25:30Z | `orchestrator` | `workflow-complete` | `-` | recorded without automatic lint mutation | `orchestrator:20260813-121910-760917a7:d6c476e9e6edff463b6243af99629444f70c8cff2a879b67a77dd3fc935a7482`
+- 2026-08-15T10:42:52Z | `orchestrator` | `create` | `TK-GDL-014` | tech-wiki/guidelines/TK-GDL-014.md | `orchestrator:20260815-183253-8b028e7e:9b72988ae15fcee3c7d8e6eef6c91893953a221470d30fc71766be3c06851b37`
+- 2026-08-15T10:42:52Z | `orchestrator` | `create` | `TK-GDL-015` | tech-wiki/guidelines/TK-GDL-015.md | `orchestrator:20260815-183253-8b028e7e:a270b8215abd1082b307e9dfc6734d64b393c29aef816a6d26eb796c5ee229a9`
+- 2026-08-15T10:42:52Z | `orchestrator` | `create` | `TK-PTF-004` | tech-wiki/pitfalls/TK-PTF-004.md | `orchestrator:20260815-183253-8b028e7e:5b63d6e77f505abb39cfcbeef372f1a4b3423aa6c01d69f1264bc9483f540247`
+- 2026-08-15T10:42:53Z | `zhangsan` | `reference` | `TK-GDL-013` | generation | `orchestrator:20260815-183253-8b028e7e`
+- 2026-08-15T10:42:53Z | `zhangsan` | `reference` | `TK-GDL-004` | generation | `orchestrator:20260815-183253-8b028e7e`
+- 2026-08-15T10:42:53Z | `zhangsan` | `reference` | `TK-GDL-008` | generation | `orchestrator:20260815-183253-8b028e7e`
+- 2026-08-15T10:42:54Z | `zhangsan` | `reference` | `TK-GDL-012` | generation | `orchestrator:20260815-183253-8b028e7e`
+- 2026-08-15T10:42:54Z | `zhangsan` | `reference` | `TK-GDL-011` | generation | `orchestrator:20260815-183253-8b028e7e`
+- 2026-08-15T10:42:55Z | `zhangsan` | `reference` | `TK-GDL-006` | generation | `orchestrator:20260815-183253-8b028e7e`
+- 2026-08-15T10:42:55Z | `zhangsan` | `reference` | `TK-GDL-009` | generation | `orchestrator:20260815-183253-8b028e7e`
+- 2026-08-15T10:42:55Z | `zhangsan` | `reference` | `TK-PTF-002` | generation | `orchestrator:20260815-183253-8b028e7e`
+- 2026-08-15T10:42:56Z | `zhangsan` | `reference` | `TK-GDL-007` | generation | `orchestrator:20260815-183253-8b028e7e`
+- 2026-08-15T10:42:56Z | `zhangsan` | `reference` | `TK-GDL-003` | architecture_evaluation | `orchestrator:20260815-183253-8b028e7e`
+- 2026-08-15T10:42:57Z | `zhangsan` | `reference` | `TK-AP-001` | architecture_evaluation | `orchestrator:20260815-183253-8b028e7e`
+- 2026-08-15T10:42:57Z | `orchestrator` | `workflow-complete` | `-` | recorded without automatic lint mutation | `orchestrator:20260815-183253-8b028e7e:b9327bf3ff9d1d2f81c213efe138ad68147b78e2098305d099a6f872ac1a9542`
+- 2026-08-16T05:10:59Z | `zhangsan` | `reference` | `TK-DEC-001` | generation | `orchestrator:accounting-20260816-105748-2caa7bfa`
+- 2026-08-16T05:11:00Z | `zhangsan` | `reference` | `TK-GDL-014` | generation | `orchestrator:accounting-20260816-105748-2caa7bfa`
+- 2026-08-16T05:11:00Z | `zhangsan` | `reference` | `TK-GDL-015` | generation | `orchestrator:accounting-20260816-105748-2caa7bfa`
+- 2026-08-16T05:11:00Z | `zhangsan` | `reference` | `TK-GDL-006` | generation | `orchestrator:accounting-20260816-105748-2caa7bfa`
+- 2026-08-16T05:11:01Z | `zhangsan` | `reference` | `TK-GDL-004` | generation | `orchestrator:accounting-20260816-105748-2caa7bfa`
+- 2026-08-16T05:11:01Z | `zhangsan` | `reference` | `TK-GDL-013` | generation | `orchestrator:accounting-20260816-105748-2caa7bfa`
+- 2026-08-16T05:11:01Z | `zhangsan` | `reference` | `TK-GDL-008` | generation | `orchestrator:accounting-20260816-105748-2caa7bfa`
+- 2026-08-16T05:11:02Z | `zhangsan` | `reference` | `TK-GDL-010` | generation | `orchestrator:accounting-20260816-105748-2caa7bfa`
+- 2026-08-16T05:11:02Z | `zhangsan` | `reference` | `TK-GDL-012` | generation | `orchestrator:accounting-20260816-105748-2caa7bfa`
+- 2026-08-16T05:11:03Z | `zhangsan` | `reference` | `TK-GDL-011` | generation | `orchestrator:accounting-20260816-105748-2caa7bfa`
+- 2026-08-16T05:11:03Z | `zhangsan` | `reference` | `TK-GDL-009` | architecture_evaluation | `orchestrator:accounting-20260816-105748-2caa7bfa`
+- 2026-08-16T05:11:03Z | `orchestrator` | `workflow-complete` | `-` | recorded without automatic lint mutation | `orchestrator:accounting-20260816-105748-2caa7bfa:e690b92146ae474c28869b1cb968652bd3aeca7306600bc755de8a7a321925b3`

@@ -5,9 +5,27 @@
   "created_at": "2026-08-13T04:25:27Z",
   "evidence": {
     "contributors": [
-      "orchestrator"
+      "orchestrator",
+      "zhangsan"
     ],
-    "references": [],
+    "references": [
+      {
+        "contributor": "zhangsan",
+        "project_id": "account",
+        "referenced_at": "2026-08-15T10:42:53Z",
+        "revision": 1,
+        "used_in": "generation",
+        "workflow_id": "20260815-183253-8b028e7e"
+      },
+      {
+        "contributor": "zhangsan",
+        "project_id": "accounting",
+        "referenced_at": "2026-08-16T05:11:01Z",
+        "revision": 1,
+        "used_in": "generation",
+        "workflow_id": "accounting-20260816-105748-2caa7bfa"
+      }
+    ],
     "validations": []
   },
   "id": "TK-GDL-013",
